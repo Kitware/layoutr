@@ -1,0 +1,22 @@
+<html>
+  <head>
+    <title>Layoutr</title>
+  </head>
+  <body>
+    <ul id="slide-out" class="sidenav sidenav-fixed">
+      <li>
+          <a id="toggle-start" class="waves-effect waves-light btn blue">Stop</a>
+          <a id="save" class="waves-effect waves-light btn blue">Save JSON</a>
+          <a id="init-upload-edge-list" class="waves-effect waves-light btn blue">Upload Edge List CSV</a>
+          <input id="upload-edge-list" type="file" style="display:none"></input>
+          <div class="slider-wrapper">
+            <span class="slider-label">Theta</span>
+            <div id="theta"></div>
+          </div>
+      </li>
+    </ul>
+    <div id="map"></div>
+    <a id="download" style="display:none"></a>
+    <script src="bundle.js"></script>
+  </body>
+</html>
