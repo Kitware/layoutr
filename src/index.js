@@ -51,6 +51,7 @@ let lines;
 let graph;
 let positions;
 let nodeMap;
+let radiusFactor = 2;
 
 var layoutWorker = new LayoutWorker();
 layoutWorker.onmessage = function(e) {
@@ -75,7 +76,7 @@ layoutWorker.onmessage = function(e) {
         fillColor: 'grey',
         fillOpacity: 0.5,
         strokeOpacity: 0.5,
-        radius: nodeid => Math.max(2, Math.pow(2, map.zoom()) * Math.sqrt(graph.nodes[nodeid].degree))
+        radius: nodeid => Math.max(1, Math.pow(2, map.zoom()) * Math.sqrt(graph.nodes[nodeid].degree) * radiusFactor)
       },
       position: nodeid => graph.nodes[nodeid]
     }).data(Object.keys(graph.nodes));
@@ -103,18 +104,26 @@ layoutWorker.onmessage = function(e) {
         tooltipElem.classList.toggle('hidden', true);
       });
   }
-  if (e.data.type === 'positions') {
+  else if (e.data.type === 'positions') {
     positions = e.data.nodes;
     points.position(nodeid => positions[nodeid]);
     lines.position(nodeid => positions[nodeid]);
     map.draw();
   }
+  else if (e.data.type === 'alpha') {
+    alpha.noUiSlider.set(e.data.value);
+  }
 }
 
 document.getElementById('toggle-start').onclick = () => {
-  let mode = document.getElementById('toggle-start').innerText.toLowerCase();
+  let mode = document.getElementById('toggle-start').innerText.toLowerCase().split(' ')[0];
   layoutWorker.postMessage({type: mode});
-  document.getElementById('toggle-start').innerText = (mode === 'start' ? 'Stop': 'Start');
+  if (mode === 'start') {
+    alpha.setAttribute('disabled', true);
+  } else {
+    alpha.removeAttribute('disabled');
+  }
+  document.getElementById('toggle-start').innerText = (mode === 'start' ? 'Stop Layout': 'Start Layout');
 }
 
 document.getElementById('save').onclick = () => {
@@ -154,24 +163,60 @@ document.getElementById('upload-edge-list').onchange = () => {
   }
 }
 
+function fixedFormat(n) {
+  return {
+    to: function (value) {
+      return value.toFixed(n);
+    },
+    from: function (value) {
+      return Number(value);
+    },
+  };
+}
+
 let theta = document.getElementById('theta');
 noUiSlider.create(theta, {
   start: 1.5,
   step: 0.1,
   range: {min: 0.5, max: 3.0},
-  format: {
-    to: function (value) {
-      return value.toFixed(1);
-    },
-    from: function (value) {
-      return Number(value);
-    },
-  }
+  format: fixedFormat(1),
 });
-
 theta.noUiSlider.on('update', () => {
   layoutWorker.postMessage({
     type: 'theta',
     value: theta.noUiSlider.get(),
+  });
+});
+
+let alpha = document.getElementById('alpha');
+noUiSlider.create(alpha, {
+  start: 1.0,
+  step: 0.01,
+  range: {min: 0.0, max: 1.0},
+  format: fixedFormat(2),
+});
+alpha.noUiSlider.on('update', () => {
+  layoutWorker.postMessage({
+    type: 'alpha',
+    value: alpha.noUiSlider.get(),
+  });
+});
+
+let radiusFactorSlider = document.getElementById('radius-factor');
+noUiSlider.create(radiusFactorSlider, {
+  start: 2.0,
+  step: 0.1,
+  range: {min: 0.1, max: 10.0},
+  format: fixedFormat(1),
+});
+radiusFactorSlider.noUiSlider.on('update', () => {
+  radiusFactor = radiusFactorSlider.noUiSlider.get();
+  if (points) {
+    points.modified();
+    map.draw();
+  }
+  layoutWorker.postMessage({
+    type: 'radiusFactor',
+    value: radiusFactorSlider.noUiSlider.get(),
   });
 });

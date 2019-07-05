@@ -1,21 +1,31 @@
 let d3 = require('d3/dist/d3.js');
 
-let link = d3.forceLink().id(d => d.id).distance(400);
+let radiusFactor = 2;
+
+let linkStrengthFunctions = {
+  inverseMinDegree: link => 1 / Math.min(link.source.degree, link.target.degree),
+  inverseSumDegree: link => 1 / (link.source.degree + link.target.degree),
+  inverseSumSqrtDegree: link => 1 / (Math.sqrt(link.source.degree) + Math.sqrt(link.target.degree)),
+};
+
+let linkDistanceFunctions = {
+  sumSqrtDegree: link => (Math.sqrt(link.source.degree) + Math.sqrt(link.target.degree)) * radiusFactor,
+};
+
+let link = d3.forceLink().id(d => d.id).distance(linkDistanceFunctions.sumSqrtDegree).strength(linkStrengthFunctions.inverseMinDegree);
 let charge = d3.forceManyBody();
-let collide = d3.forceCollide().radius(d => Math.sqrt(d.degree));
-let simulation;
+let collide = d3.forceCollide().radius(d => Math.sqrt(d.degree) * radiusFactor);
+let simulation = d3.forceSimulation()
+  .force('link', link)
+  .force('charge', charge)
+  .force('collide', collide)
+  .alphaMin(0)
+  .alphaTarget(0)
+  .stop();
 
 loadGraph = function(graph) {
-  if (simulation) {
-    simulation.stop();
-  }
-
-  simulation = d3.forceSimulation()
-    .force('link', link)
-    .force('charge', charge)
-    .force('collide', collide);
-
   function tick() {
+    postMessage({type: 'alpha', value: simulation.alpha()});
     postMessage({type: 'positions', nodes: graph.nodes.map(n => ({x: n.x, y: n.y}))});
   }
 
@@ -55,7 +65,6 @@ onmessage = function(e) {
     simulation.stop();
   }
   else if (e.data.type === 'start') {
-    simulation.alpha(1);
     simulation.restart();
   }
   else if (e.data.type === 'loadEdgeList') {
@@ -63,6 +72,14 @@ onmessage = function(e) {
   }
   else if (e.data.type === 'theta') {
     charge.theta(e.data.value);
+  }
+  else if (e.data.type === 'alpha') {
+    simulation.alpha(e.data.value);
+  }
+  else if (e.data.type === 'radiusFactor') {
+    radiusFactor = e.data.value;
+    link.strength(linkStrengthFunctions.inverseMinDegree);
+    collide.radius(d => Math.sqrt(d.degree) * radiusFactor);
   }
   else if (e.data.type === 'collide') {
     simulation.collide(e.data.enabled ? collide : null);
