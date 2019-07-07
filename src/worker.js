@@ -15,10 +15,12 @@ let linkDistanceFunctions = {
 let link = d3.forceLink().id(d => d.id).distance(linkDistanceFunctions.sumSqrtDegree).strength(linkStrengthFunctions.inverseMinDegree);
 let charge = d3.forceManyBody();
 let collide = d3.forceCollide().radius(d => Math.sqrt(d.degree) * radiusFactor);
+let center = d3.forceCenter();
 let simulation = d3.forceSimulation()
   .force('link', link)
   .force('charge', charge)
   .force('collide', collide)
+  .force('center', center)
   .alphaMin(0)
   .alphaTarget(0)
   .stop();
@@ -56,8 +58,10 @@ loadGraph = function(graph) {
     edges: graph.edges,
   }});
 
-  simulation.force('link')
-    .links(graph.edges);
+  let oldLink = simulation.force('link');
+  simulation.force('link', link);
+  link.links(graph.edges);
+  simulation.force('link', oldLink);
 }
 
 onmessage = function(e) {
@@ -82,7 +86,16 @@ onmessage = function(e) {
     collide.radius(d => Math.sqrt(d.degree) * radiusFactor);
   }
   else if (e.data.type === 'collide') {
-    simulation.collide(e.data.enabled ? collide : null);
+    simulation.force('collide', e.data.value ? collide : null);
+  }
+  else if (e.data.type === 'link') {
+    simulation.force('link', e.data.value ? link : null);
+  }
+  else if (e.data.type === 'charge') {
+    simulation.force('charge', e.data.value ? charge : null);
+  }
+  else if (e.data.type === 'center') {
+    simulation.force('center', e.data.value ? center : null);
   }
   else {
     throw Error(`Unknown message type '${e.data.type}'`);

@@ -5,22 +5,46 @@
   <body>
     <ul id="slide-out" class="sidenav sidenav-fixed">
       <li>
-        <a id="init-upload-edge-list" class="waves-effect waves-light btn blue">Upload Edge List CSV</a>
-        <a id="toggle-start" class="waves-effect waves-light btn blue">Start Layout</a>
-          <input id="upload-edge-list" type="file" style="display:none"></input>
-          <div class="slider-wrapper">
-            <span class="slider-label">Theta</span>
-            <div id="theta"></div>
-          </div>
-          <div class="slider-wrapper">
-            <span class="slider-label">Alpha</span>
-            <div id="alpha"></div>
-          </div>
-          <div class="slider-wrapper">
-            <span class="slider-label">Radius Factor</span>
-            <div id="radius-factor"></div>
-          </div>
-          <a id="save" class="waves-effect waves-light btn blue">Download JSON</a>
+        <a id="init-upload-edge-list" class="waves-effect waves-light btn blue">Upload edge list (CSV)</a>
+        <a id="toggle-start" class="waves-effect waves-light btn blue">Start layout</a>
+        <input id="upload-edge-list" type="file" style="display:none"></input>
+        <div class="slider-wrapper">
+          <span class="slider-label">Alpha</span>
+          <div id="alpha"></div>
+        </div>
+        <div class="checkbox-wrapper">
+          <label>
+            <input id="charge" type="checkbox" checked="checked" />
+            <span>Charge force</span>
+          </label>
+        </div>
+        <div class="slider-wrapper">
+          <span class="slider-label">Theta</span>
+          <div id="theta"></div>
+        </div>
+        <div class="checkbox-wrapper">
+          <label>
+            <input id="collide" type="checkbox" checked="checked" />
+            <span>Collide force</span>
+          </label>
+        </div>
+        <div class="slider-wrapper">
+          <span class="slider-label">Radius factor</span>
+          <div id="radius-factor"></div>
+        </div>
+        <div class="checkbox-wrapper">
+          <label>
+            <input id="link" type="checkbox" checked="checked" />
+            <span>Link force</span>
+          </label>
+        </div>
+        <div class="checkbox-wrapper">
+          <label>
+            <input id="center" type="checkbox" checked="checked" />
+            <span>Center force</span>
+          </label>
+        </div>
+        <a id="save" class="waves-effect waves-light btn blue">Download JSON</a>
       </li>
     </ul>
     <div id="map"></div>
