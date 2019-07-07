@@ -35,7 +35,7 @@ params.map.maxBounds.bottom += maxwh * 0.1;
 // allow zoomming in until 1 unit of space is 2^(value) bigger.
 params.map.max += 3;
 const map = geo.map(params.map);
-const layer = map.createLayer('feature', {features: ['point', 'line']});
+let layer = map.createLayer('feature', {features: ['point', 'line']});
 
 const uiLayer = map.createLayer('ui', {zIndex: 2});
 const tooltip = uiLayer.createWidget('dom', {position: {x: 0, y: 0}});
@@ -57,6 +57,9 @@ var layoutWorker = new LayoutWorker();
 layoutWorker.onmessage = function(e) {
   if (e.data.type === 'graph') {
     graph = e.data.graph;
+
+    map.deleteLayer(layer);
+    layer = map.createLayer('feature', {features: ['point', 'line']});
 
     nodeMap = {};
     graph.nodes.forEach((n, i) => nodeMap[n.id] = i);
@@ -111,7 +114,9 @@ layoutWorker.onmessage = function(e) {
     map.draw();
   }
   else if (e.data.type === 'alpha') {
+    alphaFromWorker = true;
     alpha.noUiSlider.set(e.data.value);
+    alphaFromWorker = false;
   }
 }
 
@@ -189,6 +194,7 @@ theta.noUiSlider.on('update', () => {
 });
 
 let alpha = document.getElementById('alpha');
+let alphaFromWorker = false;
 noUiSlider.create(alpha, {
   start: 1.0,
   step: 0.01,
@@ -196,10 +202,12 @@ noUiSlider.create(alpha, {
   format: fixedFormat(2),
 });
 alpha.noUiSlider.on('update', () => {
-  layoutWorker.postMessage({
-    type: 'alpha',
-    value: alpha.noUiSlider.get(),
-  });
+  if (!alphaFromWorker) {
+    layoutWorker.postMessage({
+      type: 'alpha',
+      value: alpha.noUiSlider.get(),
+    });
+  }
 });
 
 let radiusFactorSlider = document.getElementById('radius-factor');
@@ -220,3 +228,19 @@ radiusFactorSlider.noUiSlider.on('update', () => {
     value: radiusFactorSlider.noUiSlider.get(),
   });
 });
+
+document.getElementById('charge').onchange = () => {
+  layoutWorker.postMessage({type: 'charge', value: !!document.getElementById('charge').checked});
+}
+
+document.getElementById('link').onchange = () => {
+  layoutWorker.postMessage({type: 'link', value: !!document.getElementById('link').checked});
+}
+
+document.getElementById('collide').onchange = () => {
+  layoutWorker.postMessage({type: 'collide', value: !!document.getElementById('collide').checked});
+}
+
+document.getElementById('center').onchange = () => {
+  layoutWorker.postMessage({type: 'center', value: !!document.getElementById('center').checked});
+}

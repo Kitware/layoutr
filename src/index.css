@@ -21,6 +21,10 @@ html,body,#map{
 #tooltip.hidden {
   display: none;
 }
+.checkbox-wrapper {
+  padding: 24px 24px 0px 24px;
+  line-height: 1.6;
+}
 .slider-wrapper {
   padding: 0px 24px;
   /* Need to reset line-height since we're in a side nav */
