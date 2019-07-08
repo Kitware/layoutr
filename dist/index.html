@@ -6,6 +6,9 @@
     <ul id="slide-out" class="sidenav sidenav-fixed">
       <li>
         <a id="init-upload-edge-list" class="waves-effect waves-light btn blue">Upload edge list (CSV)</a>
+        <input id="upload-edge-list" type="file" style="display:none"></input>
+        <a id="init-upload-json" class="waves-effect waves-light btn blue">Upload JSON</a>
+        <input id="upload-json" type="file" style="display:none"></input>
         <div class="checkbox-wrapper">
           <label>
             <input id="show-edges" type="checkbox" />
@@ -17,7 +20,6 @@
           <div id="edge-opacity"></div>
         </div>
         <a id="toggle-start" class="waves-effect waves-light btn blue">Start layout</a>
-        <input id="upload-edge-list" type="file" style="display:none"></input>
         <div class="slider-wrapper">
           <span class="slider-label">Alpha</span>
           <div id="alpha"></div>

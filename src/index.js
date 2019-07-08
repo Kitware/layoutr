@@ -167,9 +167,28 @@ document.getElementById('upload-edge-list').onchange = () => {
   var file = document.getElementById('upload-edge-list').files[0];
   if (file) {
     var reader = new FileReader();
-    reader.readAsText(file, "UTF-8");
+    reader.readAsText(file, 'UTF-8');
     reader.onload = function (evt) {
       layoutWorker.postMessage({type: 'loadEdgeList', text: evt.target.result});
+    }
+    reader.onerror = function (evt) {
+      console.log('Error: ', evt);
+    }
+  }
+}
+
+document.getElementById('init-upload-json').onclick = () => {
+  const upload = document.getElementById('upload-json');
+  upload.click();
+}
+
+document.getElementById('upload-json').onchange = () => {
+  var file = document.getElementById('upload-json').files[0];
+  if (file) {
+    var reader = new FileReader();
+    reader.readAsText(file, 'UTF-8');
+    reader.onload = function (evt) {
+      layoutWorker.postMessage({type: 'loadJSON', text: evt.target.result});
     }
     reader.onerror = function (evt) {
       console.log('Error: ', evt);
@@ -311,7 +330,7 @@ let edgeOpacitySlider = document.getElementById('edge-opacity');
 noUiSlider.create(edgeOpacitySlider, {
   start: 0.5,
   step: 0.01,
-  range: {min: 0.0, max: 1.0},
+  range: {min: 0.01, max: 1.0},
   format: fixedFormat(2),
 });
 edgeOpacitySlider.noUiSlider.on('update', () => {

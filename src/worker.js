@@ -44,6 +44,7 @@ loadGraph = function(graph) {
   graph.nodes.forEach(d => {
     nodeMap[d.id] = d;
   });
+  graph.edges = graph.edges.filter(e => nodeMap[e.source] && nodeMap[e.target]);
   graph.edges.forEach(d => {
     nodeMap[d.source].degree += 1;
     nodeMap[d.target].degree += 1;
@@ -58,6 +59,7 @@ loadGraph = function(graph) {
     nodes: graph.nodes.map(n => ({id: n.id, degree: n.degree, x: n.x, y: n.y})),
     edges: graph.edges,
   }});
+  postMessage({type: 'positions', nodes: graph.nodes.map(n => ({x: n.x, y: n.y}))});
 
   let oldLink = simulation.force('link');
   simulation.force('link', link);
@@ -74,6 +76,9 @@ onmessage = function(e) {
   }
   else if (e.data.type === 'loadEdgeList') {
     loadGraph({edges: d3.csvParse(e.data.text)});
+  }
+  else if (e.data.type === 'loadJSON') {
+    loadGraph(JSON.parse(e.data.text));
   }
   else if (e.data.type === 'theta') {
     charge.theta(e.data.value);
