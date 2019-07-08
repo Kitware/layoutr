@@ -1,11 +1,12 @@
 let d3 = require('d3/dist/d3.js');
 
 let radiusFactor = 2;
+let linkStrength = 0.1;
 
 let linkStrengthFunctions = {
-  inverseMinDegree: link => 1 / Math.min(link.source.degree, link.target.degree),
-  inverseSumDegree: link => 1 / (link.source.degree + link.target.degree),
-  inverseSumSqrtDegree: link => 1 / (Math.sqrt(link.source.degree) + Math.sqrt(link.target.degree)),
+  inverseMinDegree: link => linkStrength / Math.min(link.source.degree, link.target.degree),
+  inverseSumDegree: link => linkStrength / (link.source.degree + link.target.degree),
+  inverseSumSqrtDegree: link => linkStrength / (Math.sqrt(link.source.degree) + Math.sqrt(link.target.degree)),
 };
 
 let linkDistanceFunctions = {
@@ -84,6 +85,16 @@ onmessage = function(e) {
     radiusFactor = e.data.value;
     link.strength(linkStrengthFunctions.inverseMinDegree);
     collide.radius(d => Math.sqrt(d.degree) * radiusFactor);
+  }
+  else if (e.data.type === 'linkStrength') {
+    linkStrength = e.data.value;
+    link.strength(linkStrengthFunctions.inverseMinDegree);
+  }
+  else if (e.data.type === 'chargeStrength') {
+    charge.strength(e.data.value);
+  }
+  else if (e.data.type === 'collideStrength') {
+    collide.strength(e.data.value);
   }
   else if (e.data.type === 'collide') {
     simulation.force('collide', e.data.value ? collide : null);

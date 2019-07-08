@@ -52,6 +52,8 @@ let graph;
 let positions;
 let nodeMap;
 let radiusFactor = 2;
+let edgeVisibility = false;
+let edgeOpacity = 0.5;
 
 var layoutWorker = new LayoutWorker();
 layoutWorker.onmessage = function(e) {
@@ -67,9 +69,9 @@ layoutWorker.onmessage = function(e) {
       position: nodeid => graph.nodes[nodeid],
       width: 1,
       strokeColor: 'black',
-      strokeOpacity: 0.01,
+      strokeOpacity: edgeOpacity,
     });
-    lines.visible(false);
+    lines.visible(edgeVisibility);
     map.draw();
 
     points = layer.createFeature('point', {
@@ -110,7 +112,6 @@ layoutWorker.onmessage = function(e) {
   else if (e.data.type === 'positions') {
     positions = e.data.nodes;
     points.position(nodeid => positions[nodeid]);
-    lines.position(nodeid => positions[nodeid]);
     map.draw();
   }
   else if (e.data.type === 'alpha') {
@@ -125,8 +126,16 @@ document.getElementById('toggle-start').onclick = () => {
   layoutWorker.postMessage({type: mode});
   if (mode === 'start') {
     alpha.setAttribute('disabled', true);
+    // Don't draw edges while performing layout for performance reasons
+    lines.visible(false);
   } else {
     alpha.removeAttribute('disabled');
+    // Reenable edge drawing
+    if (edgeVisibility) {
+      lines.visible(true);
+      lines.position(nodeid => positions[nodeid]);
+      map.draw();
+    }
   }
   document.getElementById('toggle-start').innerText = (mode === 'start' ? 'Stop Layout': 'Start Layout');
 }
@@ -229,6 +238,48 @@ radiusFactorSlider.noUiSlider.on('update', () => {
   });
 });
 
+let linkStrengthSlider = document.getElementById('link-strength');
+noUiSlider.create(linkStrengthSlider, {
+  start: 1.0,
+  step: 0.01,
+  range: {min: 0.0, max: 1.0},
+  format: fixedFormat(2),
+});
+linkStrengthSlider.noUiSlider.on('update', () => {
+  layoutWorker.postMessage({
+    type: 'linkStrength',
+    value: linkStrengthSlider.noUiSlider.get(),
+  });
+});
+
+let chargeStrengthSlider = document.getElementById('charge-strength');
+noUiSlider.create(chargeStrengthSlider, {
+  start: -30,
+  step: 1,
+  range: {min: -50, max: 50},
+  format: fixedFormat(0),
+});
+chargeStrengthSlider.noUiSlider.on('update', () => {
+  layoutWorker.postMessage({
+    type: 'chargeStrength',
+    value: chargeStrengthSlider.noUiSlider.get(),
+  });
+});
+
+let collideStrengthSlider = document.getElementById('collide-strength');
+noUiSlider.create(collideStrengthSlider, {
+  start: 0.7,
+  step: 0.01,
+  range: {min: 0.0, max: 1.0},
+  format: fixedFormat(2),
+});
+collideStrengthSlider.noUiSlider.on('update', () => {
+  layoutWorker.postMessage({
+    type: 'collideStrength',
+    value: collideStrengthSlider.noUiSlider.get(),
+  });
+});
+
 document.getElementById('charge').onchange = () => {
   layoutWorker.postMessage({type: 'charge', value: !!document.getElementById('charge').checked});
 }
@@ -244,3 +295,30 @@ document.getElementById('collide').onchange = () => {
 document.getElementById('center').onchange = () => {
   layoutWorker.postMessage({type: 'center', value: !!document.getElementById('center').checked});
 }
+
+document.getElementById('show-edges').onchange = () => {
+  edgeVisibility = !!document.getElementById('show-edges').checked;
+  if (lines) {
+    lines.visible(edgeVisibility);
+    if (edgeVisibility) {
+      lines.position(nodeid => positions[nodeid]);
+    }
+    map.draw();
+  }
+}
+
+let edgeOpacitySlider = document.getElementById('edge-opacity');
+noUiSlider.create(edgeOpacitySlider, {
+  start: 0.5,
+  step: 0.01,
+  range: {min: 0.0, max: 1.0},
+  format: fixedFormat(2),
+});
+edgeOpacitySlider.noUiSlider.on('update', () => {
+  edgeOpacity = edgeOpacitySlider.noUiSlider.get();
+  if (lines) {
+    lines.style('strokeOpacity', edgeOpacity);
+    lines.modified();
+    map.draw();
+  }
+});
