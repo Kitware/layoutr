@@ -10,10 +10,13 @@
     "build": "webpack",
     "watch": "webpack --watch",
     "serve": "webpack-dev-server --open",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "predeploy": "npm run build",
+    "deploy": "gh-pages -d dist"
   },
   "author": "Jeff Baumes (jeff.baumes@kitware.com)",
   "license": "MIT",
+  "homepage": "https://kitware.github.io/layoutr",
   "dependencies": {
     "d3": "^5.9.7",
     "geojs": "^0.19.4",
@@ -21,6 +24,7 @@
   },
   "devDependencies": {
     "css-loader": "^3.0.0",
+    "gh-pages": "^2.0.1",
     "style-loader": "^0.23.1",
     "webpack": "^4.35.2",
     "webpack-cli": "^3.3.5",
