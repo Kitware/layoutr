@@ -17,11 +17,13 @@ let link = d3.forceLink().id(d => d.id).distance(linkDistanceFunctions.sumSqrtDe
 let charge = d3.forceManyBody();
 let collide = d3.forceCollide().radius(d => Math.sqrt(d.degree) * radiusFactor);
 let center = d3.forceCenter();
+// let radial = d3.forceX(d => ((d.discovery ? d.discovery : 2020) - 1900) * 150).strength(1);
 let simulation = d3.forceSimulation()
   .force('link', link)
   .force('charge', charge)
   .force('collide', collide)
   .force('center', center)
+  // .force('radial', radial)
   .alphaMin(0)
   .alphaTarget(0)
   .stop();
@@ -55,10 +57,7 @@ loadGraph = function(graph) {
     .nodes(graph.nodes)
     .on('tick', tick);
 
-  postMessage({type: 'graph', graph: {
-    nodes: graph.nodes.map(n => ({id: n.id, degree: n.degree, x: n.x, y: n.y})),
-    edges: graph.edges,
-  }});
+  postMessage({type: 'graph', graph});
   postMessage({type: 'positions', nodes: graph.nodes.map(n => ({x: n.x, y: n.y}))});
 
   let oldLink = simulation.force('link');
