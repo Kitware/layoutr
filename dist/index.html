@@ -3,76 +3,7 @@
     <title>Layoutr</title>
   </head>
   <body>
-    <ul id="slide-out" class="sidenav sidenav-fixed">
-      <li>
-        <a id="init-upload-edge-list" class="waves-effect waves-light btn blue">Upload edge list (CSV)</a>
-        <input id="upload-edge-list" type="file" style="display:none"></input>
-        <a id="init-upload-json" class="waves-effect waves-light btn blue">Upload JSON</a>
-        <input id="upload-json" type="file" style="display:none"></input>
-        <div class="checkbox-wrapper">
-          <label>
-            <input id="show-edges" type="checkbox" />
-            <span>Show edges</span>
-          </label>
-        </div>
-        <div class="slider-wrapper">
-          <span class="slider-label">Edge opacity</span>
-          <div id="edge-opacity"></div>
-        </div>
-        <a id="toggle-start" class="waves-effect waves-light btn blue">Start layout</a>
-        <div class="slider-wrapper">
-          <span class="slider-label">Alpha</span>
-          <div id="alpha"></div>
-        </div>
-        <div class="checkbox-wrapper">
-          <label>
-            <input id="charge" type="checkbox" checked="checked" />
-            <span>Charge force</span>
-          </label>
-        </div>
-        <div class="slider-wrapper">
-          <span class="slider-label">Charge strength</span>
-          <div id="charge-strength"></div>
-        </div>
-        <div class="slider-wrapper">
-          <span class="slider-label">Theta</span>
-          <div id="theta"></div>
-        </div>
-        <div class="checkbox-wrapper">
-          <label>
-            <input id="collide" type="checkbox" checked="checked" />
-            <span>Collide force</span>
-          </label>
-        </div>
-        <div class="slider-wrapper">
-          <span class="slider-label">Collide strength</span>
-          <div id="collide-strength"></div>
-        </div>
-        <div class="slider-wrapper">
-          <span class="slider-label">Radius factor</span>
-          <div id="radius-factor"></div>
-        </div>
-        <div class="checkbox-wrapper">
-          <label>
-            <input id="link" type="checkbox" checked="checked" />
-            <span>Link force</span>
-          </label>
-        </div>
-        <div class="slider-wrapper">
-          <span class="slider-label">Link strength</span>
-          <div id="link-strength"></div>
-        </div>
-        <div class="checkbox-wrapper">
-          <label>
-            <input id="center" type="checkbox" checked="checked" />
-            <span>Center force</span>
-          </label>
-        </div>
-        <a id="save" class="waves-effect waves-light btn blue">Download JSON</a>
-      </li>
-    </ul>
-    <div id="map"></div>
-    <a id="download" style="display:none"></a>
+    <div id="app"></div>
     <script src="bundle.js"></script>
   </body>
 </html>
