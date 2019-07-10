@@ -1,66 +1,85 @@
 <template>
   <v-app>
-    <v-navigation-drawer fixed app>
-      <v-btn @click="$refs.file.click()">Upload CSV or JSON</v-btn>
+    <v-navigation-drawer fixed app class="pa-4">
+      <v-btn block @click="$refs.file.click()">Upload CSV or JSON</v-btn>
       <input ref="file" type="file" style="display:none" @change="upload">
       <v-checkbox
         v-model="showEdges"
         label="Show edges"
+        hide-details
       ></v-checkbox>
       <v-slider
         v-model="edgeOpacity"
         :min="0.01" :max="1.00" :step="0.01"
-        thumb-label="always"
+        thumb-label
+        label="Edge Opacity"
+        hide-details
       ></v-slider>
       <v-slider
         v-model="radius"
         :min="0.1" :max="10" :step="0.1"
-        thumb-label="always"
+        thumb-label
+        label="Radius"
+        hide-details
       ></v-slider>
-      <v-btn @click="toggleLayout">{{ layoutRunning ? 'Stop' : 'Start' }} layout</v-btn>
+      <v-btn block @click="toggleLayout">{{ layoutRunning ? 'Stop' : 'Start' }} layout</v-btn>
       <v-slider
         v-model="alpha"
         :min="0.00" :max="1.00" :step="0.01"
-        thumb-label="always"
+        thumb-label
         :readonly="this.layoutRunning"
+        label="Energy"
+        hide-details
       ></v-slider>
       <v-checkbox
         v-model="charge"
         label="Charge force"
+        hide-details
       ></v-checkbox>
       <v-slider
         v-model="chargeStrength"
         :min="-50" :max="50" :step="1"
-        thumb-label="always"
+        thumb-label
+        label="Strength"
+        hide-details
       ></v-slider>
       <v-slider
         v-model="theta"
         :min="0.5" :max="3.0" :step="0.1"
-        thumb-label="always"
+        thumb-label
+        label="Approximate"
+        hide-details
       ></v-slider>
       <v-checkbox
         v-model="collide"
         label="Collide force"
+        hide-details
       ></v-checkbox>
       <v-slider
         v-model="collideStrength"
         :min="0.00" :max="1.00" :step="0.01"
-        thumb-label="always"
+        thumb-label
+        label="Strength"
+        hide-details
       ></v-slider>
       <v-checkbox
         v-model="link"
         label="Link force"
+        hide-details
       ></v-checkbox>
       <v-slider
         v-model="linkStrength"
         :min="0.00" :max="1.00" :step="0.01"
-        thumb-label="always"
+        thumb-label
+        label="Strength"
+        hide-details
       ></v-slider>
       <v-checkbox
         v-model="center"
         label="Center force"
+        hide-details
       ></v-checkbox>
-      <v-btn @click="download()">Download JSON</v-btn>
+      <v-btn block @click="download()">Download JSON</v-btn>
       <a ref="downloadAnchor" style="display:none"></a>
     </v-navigation-drawer>
     <v-content>
