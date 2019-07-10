@@ -70,7 +70,6 @@
 </template>
 
 <script>
-import noUiSlider from 'materialize-css/extras/noUiSlider/nouislider.min.js';
 import geo from 'geojs/geo.js';
 
 import LayoutWorker from 'worker-loader!./worker.js';
