@@ -1,11 +1,10 @@
-import 'materialize-css/dist/css/materialize.min.css';
-import 'materialize-css/dist/js/materialize.min.js';
-import 'materialize-css/extras/noUiSlider/nouislider.css';
-import './index.css';
+import 'vuetify/dist/vuetify.min.css';
 
 import Vue from 'vue';
+import Vuetify from 'vuetify';
 import App from './App';
 
+Vue.use(Vuetify);
 Vue.config.productionTip = false;
 
 new Vue({
