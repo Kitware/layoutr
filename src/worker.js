@@ -1,7 +1,7 @@
 let d3 = require('d3/dist/d3.js');
 
-let radiusFactor = 2;
-let linkStrength = 0.1;
+let radius = 2;
+let linkStrength = 1;
 
 let linkStrengthFunctions = {
   inverseMinDegree: link => linkStrength / Math.min(link.source.degree, link.target.degree),
@@ -10,12 +10,12 @@ let linkStrengthFunctions = {
 };
 
 let linkDistanceFunctions = {
-  sumSqrtDegree: link => (Math.sqrt(link.source.degree) + Math.sqrt(link.target.degree)) * radiusFactor,
+  sumSqrtDegree: link => (Math.sqrt(link.source.degree) + Math.sqrt(link.target.degree)) * radius,
 };
 
 let link = d3.forceLink().id(d => d.id).distance(linkDistanceFunctions.sumSqrtDegree).strength(linkStrengthFunctions.inverseMinDegree);
 let charge = d3.forceManyBody();
-let collide = d3.forceCollide().radius(d => Math.sqrt(d.degree) * radiusFactor);
+let collide = d3.forceCollide().radius(d => Math.sqrt(d.degree) * radius);
 let center = d3.forceCenter();
 // let radial = d3.forceX(d => ((d.discovery ? d.discovery : 2020) - 1900) * 150).strength(1);
 let simulation = d3.forceSimulation()
@@ -67,11 +67,12 @@ loadGraph = function(graph) {
 }
 
 onmessage = function(e) {
-  if (e.data.type === 'stop') {
-    simulation.stop();
-  }
-  else if (e.data.type === 'start') {
-    simulation.restart();
+  if (e.data.type === 'layout') {
+    if (e.data.value) {
+      simulation.restart();
+    } else {
+      simulation.stop();
+    }
   }
   else if (e.data.type === 'loadEdgeList') {
     loadGraph({edges: d3.csvParse(e.data.text)});
@@ -85,10 +86,10 @@ onmessage = function(e) {
   else if (e.data.type === 'alpha') {
     simulation.alpha(e.data.value);
   }
-  else if (e.data.type === 'radiusFactor') {
-    radiusFactor = e.data.value;
+  else if (e.data.type === 'radius') {
+    radius = e.data.value;
     link.strength(linkStrengthFunctions.inverseMinDegree);
-    collide.radius(d => Math.sqrt(d.degree) * radiusFactor);
+    collide.radius(d => Math.sqrt(d.degree) * radius);
   }
   else if (e.data.type === 'linkStrength') {
     linkStrength = e.data.value;

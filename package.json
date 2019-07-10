@@ -20,12 +20,15 @@
   "dependencies": {
     "d3": "^5.9.7",
     "geojs": "^0.19.4",
-    "materialize-css": "^1.0.0"
+    "vue": "^2.6.10",
+    "vuetify": "^1.5.16"
   },
   "devDependencies": {
     "css-loader": "^3.0.0",
     "gh-pages": "^2.0.1",
     "style-loader": "^0.23.1",
+    "vue-loader": "^15.7.0",
+    "vue-template-compiler": "^2.6.10",
     "webpack": "^4.35.2",
     "webpack-cli": "^3.3.5",
     "webpack-dev-server": "^3.7.2",
