@@ -3,6 +3,7 @@
     <v-navigation-drawer fixed app class="pa-4">
       <v-btn block @click="$refs.file.click()">Upload CSV or JSON</v-btn>
       <input ref="file" type="file" style="display:none" @change="upload">
+      <div>{{ nodeCount }} nodes, {{ edgeCount }} edges</div>
       <v-checkbox
         v-model="showEdges"
         label="Show edges"
@@ -12,16 +13,22 @@
         v-model="edgeOpacity"
         :min="0.01" :max="1.00" :step="0.01"
         thumb-label
-        label="Edge Opacity"
+        label="Edge opacity"
         hide-details
       ></v-slider>
       <v-slider
-        v-model="radius"
-        :min="0.1" :max="10" :step="0.1"
+        v-model="size"
+        :min="0.01" :max="1" :step="0.01"
         thumb-label
-        label="Radius"
+        label="Size"
         hide-details
       ></v-slider>
+      <v-combobox
+        v-model="sizeField"
+        :items="fields"
+        label="Size field"
+        hide-details
+      ></v-combobox>
       <v-btn block @click="toggleLayout">{{ layoutRunning ? 'Stop' : 'Start' }} layout</v-btn>
       <v-slider
         v-model="alpha"
@@ -31,47 +38,32 @@
         label="Energy"
         hide-details
       ></v-slider>
-      <v-checkbox
-        v-model="charge"
-        label="Charge force"
-        hide-details
-      ></v-checkbox>
       <v-slider
         v-model="chargeStrength"
-        :min="-50" :max="50" :step="1"
+        :min="0" :max="50" :step="1"
         thumb-label
-        label="Strength"
+        label="Charge strength"
         hide-details
       ></v-slider>
       <v-slider
         v-model="theta"
         :min="0.5" :max="3.0" :step="0.1"
         thumb-label
-        label="Approximate"
+        label="Charge approximation"
         hide-details
       ></v-slider>
-      <v-checkbox
-        v-model="collide"
-        label="Collide force"
-        hide-details
-      ></v-checkbox>
       <v-slider
         v-model="collideStrength"
         :min="0.00" :max="1.00" :step="0.01"
         thumb-label
-        label="Strength"
+        label="Collide force"
         hide-details
       ></v-slider>
-      <v-checkbox
-        v-model="link"
-        label="Link force"
-        hide-details
-      ></v-checkbox>
       <v-slider
         v-model="linkStrength"
         :min="0.00" :max="1.00" :step="0.01"
         thumb-label
-        label="Strength"
+        label="Link force"
         hide-details
       ></v-slider>
       <v-checkbox
@@ -79,6 +71,45 @@
         label="Center force"
         hide-details
       ></v-checkbox>
+      <v-slider
+        v-model="xStrength"
+        :min="0.00" :max="1.00" :step="0.01"
+        thumb-label
+        label="X force"
+        hide-details
+      ></v-slider>
+      <v-combobox
+        v-model="xField"
+        :items="fields"
+        label="X field"
+        hide-details
+      ></v-combobox>
+      <v-slider
+        v-model="yStrength"
+        :min="0.00" :max="1.00" :step="0.01"
+        thumb-label
+        label="Y force"
+        hide-details
+      ></v-slider>
+      <v-combobox
+        v-model="yField"
+        :items="fields"
+        label="Y field"
+        hide-details
+      ></v-combobox>
+      <v-slider
+        v-model="radialStrength"
+        :min="0.00" :max="1.00" :step="0.01"
+        thumb-label
+        label="Radial force"
+        hide-details
+      ></v-slider>
+      <v-combobox
+        v-model="radialField"
+        :items="fields"
+        label="Radial field"
+        hide-details
+      ></v-combobox>
       <v-btn block @click="download()">Download JSON</v-btn>
       <a ref="downloadAnchor" style="display:none"></a>
     </v-navigation-drawer>
@@ -92,6 +123,7 @@
 import geo from 'geojs/geo.js';
 
 import LayoutWorker from 'worker-loader!./worker.js';
+import * as scales from './scales.js';
 
 const layoutWorker = new LayoutWorker();
 let map;
@@ -104,20 +136,27 @@ let nodeMap;
 export default {
   data: function () {
     return {
+      fields: [],
       showEdges: false,
       edgeOpacity: 0.5,
-      radius: 2,
+      size: 0.5,
+      sizeField: 'degree',
       layoutRunning: false,
       alpha: 1.0,
       alphaFromWorker: false,
-      charge: true,
-      chargeStrength: -30,
+      chargeStrength: 30,
       theta: 1.5,
-      collide: true,
       collideStrength: 0.7,
-      link: true,
       linkStrength: 1,
       center: true,
+      xField: null,
+      xStrength: 0,
+      yField: null,
+      yStrength: 0,
+      radialField: null,
+      radialStrength: 0,
+      nodeCount: 0,
+      edgeCount: 0,
     };
   },
   mounted() {
@@ -163,6 +202,19 @@ export default {
     layoutWorker.onmessage = e => {
       if (e.data.type === 'graph') {
         graph = e.data.graph;
+        this.nodeCount = graph.nodes.length;
+        this.edgeCount = graph.edges.length;
+
+        const ignoreFields = ['x', 'y', 'vx', 'vy'];
+        this.fields = [];
+        graph.nodes.forEach(n => {
+          Object.keys(n).forEach(f => {
+            if (!ignoreFields.includes(f) && !this.fields.includes(f)) {
+              this.fields.push(f);
+            }
+          });
+        });
+        this.fields.sort();
 
         map.deleteLayer(layer);
         layer = map.createLayer('feature', {features: ['point', 'line']});
@@ -185,10 +237,11 @@ export default {
             fillColor: 'grey',
             fillOpacity: 0.5,
             strokeOpacity: 0.5,
-            radius: nodeid => Math.max(1, Math.pow(2, map.zoom()) * Math.sqrt(graph.nodes[nodeid].degree) * this.radius)
           },
           position: nodeid => graph.nodes[nodeid]
         }).data(Object.keys(graph.nodes));
+
+        this.updateSizeScale();
 
         map.geoOn(geo.event.zoom, () => {
           // Ensure selection quadtree updates with new point sizes
@@ -198,14 +251,18 @@ export default {
         map.draw();
 
         points
-          .geoOn(geo.event.feature.mouseon, function (evt) {
-            const nodeid = evt.data, node = graph.nodes[nodeid];
-            let text = node.id;
-            if (text) {
-              tooltip.position(evt.mouse.geo);
-              tooltipElem.innerText = text;
-            }
-            tooltipElem.classList.toggle('hidden', !text);
+          .geoOn(geo.event.feature.mouseon, (evt) => {
+            const nodeid = evt.data;
+            const node = graph.nodes[nodeid];
+            tooltip.position(evt.mouse.geo);
+            let description = `<div><b>${node.id}</b></div>`;
+            this.fields.forEach(key => {
+              if (key !== 'id') {
+                description += `<div>${key}: ${node[key]}</div>`;
+              }
+            })
+            tooltipElem.innerHTML = description;
+            tooltipElem.classList.toggle('hidden', false);
           })
           .geoOn(geo.event.feature.mousemove, function (evt) {
             tooltip.position(evt.mouse.geo);
@@ -226,16 +283,19 @@ export default {
       }
     }
 
-    // Add watchers which simply sync data to layout worker
+    // Add watchers which sync data to layout worker
     [
-      'charge',
       'chargeStrength',
       'theta',
-      'collide',
       'collideStrength',
-      'link',
       'linkStrength',
       'center',
+      'xField',
+      'xStrength',
+      'yField',
+      'yStrength',
+      'radialField',
+      'radialStrength',
     ].forEach(name => {
       function sendToWorker(value) {
         layoutWorker.postMessage({type: name, value});
@@ -271,11 +331,21 @@ export default {
       },
       immediate: true,
     },
-    radius: {
+    size: {
       handler(value) {
-        layoutWorker.postMessage({type: 'radius', value});
+        layoutWorker.postMessage({type: 'size', value});
         if (points) {
-          points.modified();
+          this.updateSizeScale();
+          map.draw();
+        }
+      },
+      immediate: true,
+    },
+    sizeField: {
+      handler(value) {
+        layoutWorker.postMessage({type: 'sizeField', value});
+        if (points) {
+          this.updateSizeScale();
           map.draw();
         }
       },
@@ -318,6 +388,14 @@ export default {
         }
       }
     },
+    updateSizeScale() {
+      if (points) {
+        const sizeScale = scales.generateSizeScale(graph.nodes, this.sizeField, this.size);
+        points.style('radius', (nodeid) => {
+          return Math.pow(2, map.zoom()) * sizeScale(graph.nodes[nodeid]);
+        });
+      }
+    },
     download() {
       const nodesWithPositions = graph.nodes.map((n, i) => ({
         ...n,
@@ -346,14 +424,13 @@ export default {
   overflow: hidden;
 }
 #tooltip {
-  margin-left: 0px;
-  margin-top: -20px;
-  height: 16px;
+  margin-left: 20px;
+  margin-top: 20px;
   line-height: 16px;
   padding: 2px 5px;
   background: rgba(255, 255, 255, 0.75);
   border-radius: 10px;
-  border-bottom-left-radius: 0;
+  border-top-left-radius: 0;
   border: 1px solid rgba(0, 0, 0, 0.75);
   font-size: 12px;
   color: black;
