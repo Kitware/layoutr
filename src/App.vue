@@ -199,6 +199,23 @@ export default {
 
     map.draw();
 
+    // Load the graph if we have one as a URL parameter
+    const url = new URL(window.location.href);
+    const graphURL = url.searchParams.get('graph');
+    if (graphURL) {
+      fetch(graphURL)
+        .then(response => Promise.all([response.text(), response.headers.get('Content-Type')]))
+        .then(([content, contentType]) => {
+          if (contentType.startsWith('application/json')) {
+            layoutWorker.postMessage({type: 'loadJSON', text: content});
+          } else if (contentType.startsWith('text/csv')) {
+            layoutWorker.postMessage({type: 'loadEdgeList', text: content});
+          } else {
+            console.log(`Error: Cannot handle files with content type ${contentType}.`);
+          }
+        });
+    }
+
     layoutWorker.onmessage = e => {
       if (e.data.type === 'graph') {
         graph = e.data.graph;
@@ -230,11 +247,23 @@ export default {
         lines.visible(this.showEdges);
         map.draw();
 
+        graph.nodes.forEach(n => n.adj = []);
+        graph.edges.forEach(e => {
+          const s = graph.nodes[nodeMap[e.source]];
+          const t = graph.nodes[nodeMap[e.target]];
+          if (!s.adj.includes(t)) {
+            s.adj.push(t);
+          }
+          if (!t.adj.includes(s)) {
+            t.adj.push(s);
+          }
+        });
+
         points = layer.createFeature('point', {
           primitiveShape: 'triangle',
           style: {
             strokeColor: 'black',
-            fillColor: 'grey',
+            fillColor: nodeid => graph.nodes[nodeid].select ? ['yellow', 'red'][graph.nodes[nodeid].select - 1] : 'grey',
             fillOpacity: 0.5,
             strokeOpacity: 0.5,
           },
@@ -263,12 +292,19 @@ export default {
             })
             tooltipElem.innerHTML = description;
             tooltipElem.classList.toggle('hidden', false);
+            node.adj.forEach(n => n.select = 1);
+            node.select = 2;
+            points.modified();
+            map.draw();
           })
           .geoOn(geo.event.feature.mousemove, function (evt) {
             tooltip.position(evt.mouse.geo);
           })
           .geoOn(geo.event.feature.mouseoff, function (evt) {
             tooltipElem.classList.toggle('hidden', true);
+            graph.nodes.forEach(n => n.select = 0);
+            points.modified();
+            map.draw();
           });
       }
       else if (e.data.type === 'positions') {
