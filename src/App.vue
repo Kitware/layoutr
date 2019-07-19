@@ -433,7 +433,7 @@ export default {
       }
     },
     download() {
-      const nodesWithPositions = graph.nodes.map((n, i) => ({
+      const nodesWithPositions = graph.nodes.map(({adj, ...n}, i) => ({
         ...n,
         ...positions[i],
       }));
