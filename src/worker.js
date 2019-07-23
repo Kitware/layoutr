@@ -135,7 +135,7 @@ onmessage = function(e) {
   }
   else if (e.data.type === 'yField') {
     yField = e.data.value;
-    y.y(scales.generateScale(simulation.nodes(), yField, {area: 1000}));
+    y.y(scales.generateScale(simulation.nodes(), yField, {min: 0.5, max: -0.5, area: 1000}));
   }
   else if (e.data.type === 'radialStrength') {
     simulation.force('radial', e.data.value ? radial : null);
