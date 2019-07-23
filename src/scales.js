@@ -18,6 +18,9 @@ export function generateScale(arr, field, {area = null, min = -0.5, max = 0.5, i
 }
 
 export function generateSizeScale(arr, field, size) {
+  if (field === 'None') {
+    return () => 250 * size;
+  }
   const sizeScale = generateScale(arr, field, {min: 3, max: 500*500, invalid: 2});
   return d => Math.sqrt(sizeScale(d)) * size;
 }
