@@ -25,7 +25,7 @@
       ></v-slider>
       <v-combobox
         v-model="sizeField"
-        :items="fields"
+        :items="['None', ...fields]"
         label="Size field"
         hide-details
       ></v-combobox>
@@ -222,7 +222,7 @@ export default {
         this.nodeCount = graph.nodes.length;
         this.edgeCount = graph.edges.length;
 
-        const ignoreFields = ['x', 'y', 'vx', 'vy'];
+        const ignoreFields = ['x', 'y', 'vx', 'vy', 'select'];
         this.fields = [];
         graph.nodes.forEach(n => {
           Object.keys(n).forEach(f => {
