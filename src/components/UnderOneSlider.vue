@@ -1,6 +1,6 @@
 <template>
   <app-slider
-    v-model="value"
+    :value="value"
     :min="min"
     :max="1.00"
     :step="0.01"
@@ -8,7 +8,7 @@
     :label="label"
     hide-details
     :read-only="readOnly"
-    @change="update"
+    @input="update(arguments[0])"
   ></app-slider>
 </template>
 <script>
@@ -31,8 +31,8 @@ export default {
     }
   },
   methods: {
-    update() {
-      this.$emit("input", this.value);
+    update(value) {
+      this.$emit("input", value);
     }
   }
 };
