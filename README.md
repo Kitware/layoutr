@@ -12,7 +12,7 @@ npm run serve
 
 ## Usage
 
-* Click "UPLOAD CVS OR JSON" to upload a file of the form:
+* Click "UPLOAD CSV OR JSON" to upload a file of the form:
 ```
 source,target
 a,b
@@ -23,11 +23,17 @@ d,a
 for CSV and
 ```
 {
+    "nodes": [
+    { "id": "a" },
+    { "id": "b" },
+    { "id": "c" },
+    { "id": "d" }
+  ],
   "edges": [
     {
       "source": "a",
       "target": "b"
-      },
+    },
     {
       "source": "b",
       "target": "c"
