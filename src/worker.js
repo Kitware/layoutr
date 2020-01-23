@@ -12,10 +12,14 @@ let linkStrengthFunctions = {
   inverseMinDegree: link => linkStrength / Math.min(link.source.degree, link.target.degree),
   inverseSumDegree: link => linkStrength / (link.source.degree + link.target.degree),
   inverseSumSqrtDegree: link => linkStrength / (Math.sqrt(link.source.degree) + Math.sqrt(link.target.degree)),
+  constant: () => linkStrength,
+  radius: link => linkStrength*linkStrength / Math.min(collide.radius()(link.source), collide.radius()(link.target)),
 };
 
 let linkDistanceFunctions = {
   sumSqrtDegree: link => (Math.sqrt(link.source.degree) + Math.sqrt(link.target.degree)) * size,
+  constant: () => size / 20,
+  radius: link => (2 - linkStrength) * (collide.radius()(link.source) + collide.radius()(link.target)),
 };
 
 let link = d3.forceLink().id(d => d.id).distance(linkDistanceFunctions.sumSqrtDegree).strength(linkStrengthFunctions.inverseMinDegree);
@@ -25,33 +29,38 @@ let center = d3.forceCenter();
 let x = d3.forceX();
 let y = d3.forceY();
 let radial = d3.forceRadial();
+let gravity = d3.forceRadial().radius(0);
 let simulation = d3.forceSimulation()
   .alphaMin(0)
   .alphaTarget(0)
+  .alphaDecay(0)
   .stop();
 
 loadGraph = function(graph) {
   function tick() {
-    postMessage({type: 'alpha', value: simulation.alpha()});
     postMessage({type: 'positions', nodes: graph.nodes.map(n => ({x: n.x, y: n.y}))});
   }
 
   if (!graph.nodes) {
     graph.nodes = d3.set([...graph.edges.map(d => d.source), ...graph.edges.map(d => d.target)]).values().map(d => ({
       id: d,
-      degree: 0,
-      x: Math.random()*1000,
-      y: Math.random()*1000,
     }));
   }
   const nodeMap = {};
   graph.nodes.forEach(d => {
+    d.degree = 0;
+    d.id = '' + d.id;
     nodeMap[d.id] = d;
+  });
+  graph.edges.forEach(d => {
+    d.source = '' + d.source;
+    d.target = '' + d.target;
   });
   graph.edges = graph.edges.filter(e => nodeMap[e.source] && nodeMap[e.target]);
   graph.edges.forEach(d => {
-    nodeMap[d.source].degree += 1;
-    nodeMap[d.target].degree += 1;
+    const weight = d.weight !== undefined ? +d.weight : 1
+    nodeMap[d.source].degree += weight;
+    nodeMap[d.target].degree += weight;
   });
 
   graph.nodes.sort((a, b) => d3.ascending(a.degree, b.degree));
@@ -88,7 +97,7 @@ onmessage = function(e) {
     loadGraph({edges: d3.csvParse(e.data.text)});
   }
   else if (e.data.type === 'loadJSON') {
-    loadGraph(JSON.parse(e.data.text));
+    loadGraph(e.data.text);
   }
   else if (e.data.type === 'theta') {
     charge.theta(e.data.value);
@@ -98,16 +107,20 @@ onmessage = function(e) {
   }
   else if (e.data.type === 'size') {
     size = e.data.value;
-    link.strength(link.strength());
     collide.radius(scales.generateSizeScale(simulation.nodes(), sizeField, size));
+    link.distance(link.distance());
+    link.strength(link.strength());
   }
   else if (e.data.type === 'sizeField') {
     sizeField = e.data.value;
     collide.radius(scales.generateSizeScale(simulation.nodes(), sizeField, size));
+    link.distance(link.distance());
+    link.strength(link.strength());
   }
   else if (e.data.type === 'linkStrength') {
     simulation.force('link', e.data.value ? link : null);
     linkStrength = e.data.value;
+    link.distance(link.distance());
     link.strength(link.strength());
   }
   else if (e.data.type === 'chargeStrength') {
@@ -146,6 +159,10 @@ onmessage = function(e) {
     radial.radius(scales.generateScale(
       simulation.nodes(), radialField, {area: 1000, min: 0.5, max: 1.5, invalid: 1.6},
     ));
+  }
+  else if (e.data.type === 'gravityStrength') {
+    simulation.force('gravity', e.data.value ? gravity : null);
+    gravity.strength(e.data.value);
   }
   else {
     throw Error(`Unknown message type '${e.data.type}'`);
