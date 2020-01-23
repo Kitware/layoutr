@@ -17,6 +17,20 @@
         hide-details
       ></v-slider>
       <v-slider
+        v-model="nodeOpacity"
+        :min="0.01" :max="1.00" :step="0.01"
+        thumb-label
+        label="Node opacity"
+        hide-details
+      ></v-slider>
+      <v-slider
+        v-model="nodeStrokeWidth"
+        :min="0" :max="1.00" :step="0.01"
+        thumb-label
+        label="Node stroke width"
+        hide-details
+      ></v-slider>
+      <v-slider
         v-model="size"
         :min="0.01" :max="1" :step="0.01"
         thumb-label
@@ -34,7 +48,6 @@
         v-model="alpha"
         :min="0.00" :max="1.00" :step="0.01"
         thumb-label
-        :readonly="this.layoutRunning"
         label="Energy"
         hide-details
       ></v-slider>
@@ -110,6 +123,13 @@
         label="Radial field"
         hide-details
       ></v-combobox>
+      <v-slider
+        v-model="gravityStrength"
+        :min="0.00" :max="0.1" :step="0.001"
+        thumb-label
+        label="Gravity"
+        hide-details
+      ></v-slider>
       <v-btn block @click="download()">Download JSON</v-btn>
       <a ref="downloadAnchor" style="display:none"></a>
     </v-navigation-drawer>
@@ -139,11 +159,12 @@ export default {
       fields: [],
       showEdges: false,
       edgeOpacity: 0.5,
+      nodeOpacity: 0.5,
+      nodeStrokeWidth: 1.0,
       size: 0.5,
       sizeField: 'degree',
       layoutRunning: false,
       alpha: 1.0,
-      alphaFromWorker: false,
       chargeStrength: 30,
       theta: 1.5,
       collideStrength: 0.7,
@@ -155,6 +176,7 @@ export default {
       yStrength: 0,
       radialField: null,
       radialStrength: 0,
+      gravityStrength: 0,
       nodeCount: 0,
       edgeCount: 0,
     };
@@ -240,7 +262,6 @@ export default {
         graph.nodes.forEach((n, i) => nodeMap[n.id] = i);
         lines = layer.createFeature('line').data(graph.edges.map(e => [nodeMap[e.source], nodeMap[e.target]])).style({
           position: nodeid => graph.nodes[nodeid],
-          width: 1,
           strokeColor: 'black',
           strokeOpacity: this.edgeOpacity,
         });
@@ -259,13 +280,18 @@ export default {
           }
         });
 
+        // TODO: call geoUtils.convertColor
+        // TODO: look into https://opengeoscience.github.io/geojs/examples/animation/
+        // pointFeature.updateStyleFromArray(updateStyles, null, true);
+
         points = layer.createFeature('point', {
           primitiveShape: 'triangle',
           style: {
             strokeColor: 'black',
             fillColor: nodeid => graph.nodes[nodeid].select ? ['yellow', 'red'][graph.nodes[nodeid].select - 1] : 'grey',
-            fillOpacity: 0.5,
-            strokeOpacity: 0.5,
+            fillOpacity: this.nodeOpacity,
+            strokeOpacity: this.nodeOpacity,
+            strokeWidth: this.nodeStrokeWidth,
           },
           position: nodeid => graph.nodes[nodeid]
         }).data(Object.keys(graph.nodes));
@@ -312,11 +338,6 @@ export default {
         points.position(nodeid => positions[nodeid]);
         map.draw();
       }
-      else if (e.data.type === 'alpha') {
-        this.alphaFromWorker = true;
-        this.alpha = e.data.value;
-        this.$nextTick(() => this.alphaFromWorker = false);
-      }
     }
 
     // Add watchers which sync data to layout worker
@@ -332,6 +353,7 @@ export default {
       'yStrength',
       'radialField',
       'radialStrength',
+      'gravityStrength',
     ].forEach(name => {
       function sendToWorker(value) {
         layoutWorker.postMessage({type: name, value});
@@ -359,11 +381,24 @@ export default {
         map.draw();
       }
     },
+    nodeOpacity(value) {
+      if (points) {
+        points.style('strokeOpacity', value);
+        points.style('fillOpacity', value);
+        points.modified();
+        map.draw();
+      }
+    },
+    nodeStrokeWidth(value) {
+      if (points) {
+        points.style('strokeWidth', value);
+        points.modified();
+        map.draw();
+      }
+    },
     alpha: {
       handler(value) {
-        if (!this.alphaFromWorker) {
-          layoutWorker.postMessage({type: 'alpha', value: value});
-        }
+        layoutWorker.postMessage({type: 'alpha', value: value});
       },
       immediate: true,
     },
@@ -397,7 +432,7 @@ export default {
         reader.onload = function (evt) {
           const extension = file.name.split('.').slice(-1)[0];
           if (extension === 'json') {
-            layoutWorker.postMessage({type: 'loadJSON', text: evt.target.result});
+            layoutWorker.postMessage({type: 'loadJSON', text: JSON.parse(evt.target.result)});
           } else if (extension === 'csv') {
             layoutWorker.postMessage({type: 'loadEdgeList', text: evt.target.result});
           } else {
