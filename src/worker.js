@@ -9,7 +9,7 @@ let yField = 'degree';
 let radialField = 'degree';
 
 let linkStrengthFunctions = {
-  inverseMinDegree: link => linkStrength / Math.min(link.source.degree, link.target.degree),
+  inverseMinDegree: link => linkStrength * link.weight / Math.min(link.source.degree, link.target.degree),
   inverseSumDegree: link => linkStrength / (link.source.degree + link.target.degree),
   inverseSumSqrtDegree: link => linkStrength / (Math.sqrt(link.source.degree) + Math.sqrt(link.target.degree)),
   constant: () => linkStrength,
@@ -17,7 +17,7 @@ let linkStrengthFunctions = {
 };
 
 let linkDistanceFunctions = {
-  sumSqrtDegree: link => (Math.sqrt(link.source.degree) + Math.sqrt(link.target.degree)) * size,
+  sumSqrtDegree: link => (Math.sqrt(link.source.degree) + Math.sqrt(link.target.degree)) * size / link.weight,
   constant: () => size / 20,
   radius: link => (2 - linkStrength) * (collide.radius()(link.source) + collide.radius()(link.target)),
 };
@@ -41,6 +41,22 @@ loadGraph = function(graph) {
     postMessage({type: 'positions', nodes: graph.nodes.map(n => ({x: n.x, y: n.y}))});
   }
 
+  // Normalize edges
+  graph.edges = graph.edges.map(d => {
+    let edge = d;
+    if (Array.isArray(edge)) {
+      edge = {
+        source: d[0],
+        target: d[1],
+        weight: d[2] === undefined ? 1 : d[2],
+      };
+    }
+    edge.source = '' + edge.source;
+    edge.target = '' + edge.target;
+    edge.weight = edge.weight === undefined ? 1 : +edge.weight;
+    return edge;
+  });
+
   if (!graph.nodes) {
     graph.nodes = d3.set([...graph.edges.map(d => d.source), ...graph.edges.map(d => d.target)]).values().map(d => ({
       id: d,
@@ -51,10 +67,6 @@ loadGraph = function(graph) {
     d.degree = 0;
     d.id = '' + d.id;
     nodeMap[d.id] = d;
-  });
-  graph.edges.forEach(d => {
-    d.source = '' + d.source;
-    d.target = '' + d.target;
   });
   graph.edges = graph.edges.filter(e => nodeMap[e.source] && nodeMap[e.target]);
   graph.edges.forEach(d => {
