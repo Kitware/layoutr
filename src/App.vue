@@ -494,13 +494,24 @@ export default {
             this.fields.forEach((field) => this.selected[field] = node[field]);
             node.adj.forEach(n => n.select = 1);
             node.select = 2;
-            points.modified();
+            // We are only modifying the fillColor.  If we call
+            // points.modified(), we invalidate the rangeTree, which is
+            // unnecessary.  points._build(true) just repopulates styles (not
+            // geometry).  This is probably the cheapest update that is
+            // exposed by geojs.  It would be faster to call
+            // updateStyleFromArray so that only the fillColor is updated,
+            // but that still updates the modified time, causing the
+            // rangeTree to be regenerated.  geojs would need a "mark
+            // rangeTree as clean" method to work around this.
+            // points.modified();
+            points._build(true);
             map.draw();
           })
           .geoOn(geo.event.feature.mouseoff, function (evt) {
             this.selected = null;
             graph.nodes.forEach(n => n.select = 0);
-            points.modified();
+            // points.modified();
+            points._build(true);
             map.draw();
           });
       }
