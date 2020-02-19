@@ -358,7 +358,7 @@ export default {
   },
 
   created() {
-    this.updateValuesBastedOnURLParams();
+    this.updateValuesBasedOnURLParams();
     this.addUpdateURLWatchers();
   },
 
@@ -725,7 +725,7 @@ export default {
       window.history.replaceState(null, null, `?${url.join('&')}`);
     },
 
-    updateValuesBastedOnURLParams() {
+    updateValuesBasedOnURLParams() {
       const urlParams = this.getURLParams();
 
       this.graphSettings.forEach((option) => {
