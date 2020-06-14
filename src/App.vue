@@ -330,8 +330,38 @@ export default {
       edgeCount: 0,
       colorScale: null,
       selected: null,
+      graphSettings: [
+        'markdown',
+        'showEdges',
+        'edgeOpacity',
+        'nodeOpacity',
+        'nodeStrokeWidth',
+        'size',
+        'sizeField',
+        'colorField',
+        'layoutRunning',
+        'alpha',
+        'chargeStrength',
+        'theta',
+        'collideStrength',
+        'linkStrength',
+        'center',
+        'xField',
+        'xStrength',
+        'yField',
+        'yStrength',
+        'radialField',
+        'radialStrength',
+        'gravityStrength',
+      ],
     };
   },
+
+  created() {
+    this.updateValuesBasedOnURLParams();
+    this.addUpdateURLWatchers();
+  },
+
   mounted() {
     let b = 32000;
     let bounds = {
@@ -680,6 +710,57 @@ export default {
       this.$refs.downloadAnchor.setAttribute('download', 'graph.json');
       this.$refs.downloadAnchor.click();
     },
+
+    addUpdateURLWatchers() {
+      this.graphSettings.forEach((option) => {
+        this.$watch(`${option}.value`, () => this.updateURLParams());
+      });
+    },
+
+    updateURLParams() {
+      const url = [];
+      this.graphSettings.forEach((option) => {
+        url.push(`${option}=${encodeURI(this[option].value)}`)
+      });
+
+      const urlParams = this.getURLParams();
+      
+      if (urlParams.config) {
+        url.push(`config=${urlParams.config}`);
+      }
+
+      if (urlParams.graph) {
+        url.push(`graph=${urlParams.graph}`);
+      }
+
+      window.history.replaceState(null, null, `?${url.join('&')}`);
+    },
+
+    updateValuesBasedOnURLParams() {
+      const urlParams = this.getURLParams();
+
+      this.graphSettings.forEach((option) => {
+        const tempValue = urlParams[option] || this[option].value;
+        if (typeof this[option].value === 'number') {
+          this[option].value = +decodeURI(tempValue);
+        } else {
+          this[option].value = decodeURI(tempValue);
+          if (this[option].value === 'false') {
+            this[option].value = false;
+          } else if (this[option].value === 'true') {
+            this[option].value = true;
+          }
+        }
+      });
+    },
+
+    getURLParams() {
+      const urlParams = {};
+      window.location.href.replace(/[?&]+([^=&]+)=([^&]*)/gi, function(m,key,value) {
+        urlParams[key] = value;
+      });
+      return urlParams;
+    }
   },
 }
 </script>
