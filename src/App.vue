@@ -4,42 +4,115 @@
       absolute
       class="ma-6"
       fab
+      outlined
+      small
+      elevation="0"
       @click.stop="drawer = true"
     >
-      <v-icon>mdi-menu</v-icon>
+      <v-icon>mdi-chevron-right</v-icon>
     </v-btn>
     <v-card
       absolute
-      elevation="4"
+      outlined
+      elevation="0"
       v-if="selected"
       id="graph-tooltip"
       width="250"
       class="pa-2"
     >
       <div v-for="field in fields" :key="field">
-        {{ field }}: {{ selected[field] }}
+        <b>{{ field }}</b>: {{ selected[field] }}
       </div>
     </v-card>
     <v-navigation-drawer
       v-model="drawer"
       width="400"
-      class="pa-4"
       app
-      temporary
     >
+    <v-container fluid>
       <v-row>
+        <h1 class="ml-4">Layoutr</h1>
         <v-spacer/>
-        <v-btn class="mr-4 mb-4" @click="drawer = false">
-          Go to network <v-icon right>mdi-arrow-right</v-icon>
+        <v-btn
+          class="mr-4 mb-4"
+          icon
+          plain
+          @click="drawer = false"
+        >
+          <v-icon>mdi-chevron-left</v-icon>
         </v-btn>
       </v-row>
       <vue-markdown v-if="markdown.visible" :source="markdown.value" />
-      <v-btn v-if="fileUpload.visible" block @click="$refs.file.click()">Upload CSV or JSON</v-btn>
+      <v-btn
+        v-if="fileUpload.visible"
+        block
+        elevation="0"
+        color="primary"
+        @click="$refs.file.click()"
+      >
+        Upload CSV or JSON
+      </v-btn>
       <input ref="file" type="file" style="display:none" @change="upload">
+      <v-row>
+        <v-col>
+          <v-select
+            v-if="searchField.visible"
+            v-model="searchField.value"
+            :items="fields"
+            label="Search by"
+            outlined
+            dense
+            hide-details
+          />
+        </v-col>
+        <v-col>
+          <v-select
+            v-if="searchOp.visible"
+            v-model="searchOp.value"
+            :items="searchOperators"
+            outlined
+            dense
+            hide-details
+          />
+        </v-col>
+      </v-row>
+      <v-text-field
+        v-if="searchOp.value !== 'is' && searchOp.value !== 'is one of'"
+        v-model="searchValue.value"
+        clearable
+        label="Search term"
+        outlined
+        dense
+        hide-details
+      />
+      <v-autocomplete
+        v-if="searchOp.value === 'is'"
+        v-model="searchValue.value"
+        :items="searchItems"
+        clearable
+        label="Search term"
+        outlined
+        dense
+        hide-details
+      />
+      <v-autocomplete
+        v-if="searchOp.value === 'is one of'"
+        v-model="searchValueList.value"
+        :items="searchItems"
+        multiple
+        clearable
+        label="Search term"
+        outlined
+        dense
+        hide-details
+        @change="updatePoints"
+      />
       <v-checkbox
         v-if="showEdges.visible"
         v-model="showEdges.value"
         label="Show edges"
+        class="mt-0"
+        hide-details
       />
       <v-slider
         v-if="edgeOpacity.visible"
@@ -73,24 +146,31 @@
         label="Size"
         hide-details
       ></v-slider>
-      <v-combobox
+      <v-select
         v-if="sizeField.visible"
         v-model="sizeField.value"
         :items="['None', ...fields]"
-        label="Size field"
+        label="Size"
+        outlined
+        dense
         hide-details
-      ></v-combobox>
-      <v-combobox
+        class="mb-4"
+      ></v-select>
+      <v-select
         v-if="colorField.visible"
         v-model="colorField.value"
         :items="['None', ...fields]"
-        label="Color field"
+        label="Color"
+        outlined
+        dense
         hide-details
         class="mb-4"
-      ></v-combobox>
+      ></v-select>
       <v-btn
         v-if="layoutRunning.visible"
         block
+        elevation="0"
+        color="primary"
         @click="toggleLayout"
       >
         {{ layoutRunning.value ? 'Stop' : 'Start' }} layout
@@ -108,7 +188,7 @@
         v-model="chargeStrength.value"
         :min="0" :max="50" :step="1"
         thumb-label
-        label="Charge strength"
+        label="Charge force"
         hide-details
       ></v-slider>
       <v-slider
@@ -116,7 +196,7 @@
         v-model="theta.value"
         :min="0.5" :max="3.0" :step="0.1"
         thumb-label
-        label="Charge approximation"
+        label="Charge approx."
         hide-details
       ></v-slider>
       <v-slider
@@ -135,10 +215,19 @@
         label="Link force"
         hide-details
       ></v-slider>
+      <v-slider
+        v-if="gravityStrength.visible"
+        v-model="gravityStrength.value"
+        :min="0.00" :max="0.1" :step="0.001"
+        thumb-label
+        label="Gravity"
+        hide-details
+      ></v-slider>
       <v-checkbox
         v-if="center.visible"
         v-model="center.value"
-        label="Center force"
+        label="Center"
+        class="mt-0"
         hide-details
       ></v-checkbox>
       <v-slider
@@ -149,13 +238,15 @@
         label="X force"
         hide-details
       ></v-slider>
-      <v-combobox
+      <v-select
         v-if="xField.visible"
         v-model="xField.value"
         :items="fields"
-        label="X field"
+        label="X"
+        outlined
+        dense
         hide-details
-      ></v-combobox>
+      ></v-select>
       <v-slider
         v-if="yStrength.visible"
         v-model="yStrength.value"
@@ -164,13 +255,15 @@
         label="Y force"
         hide-details
       ></v-slider>
-      <v-combobox
+      <v-select
         v-if="yField.visible"
         v-model="yField.value"
         :items="fields"
-        label="Y field"
+        label="Y"
+        outlined
+        dense
         hide-details
-      ></v-combobox>
+      ></v-select>
       <v-slider
         v-if="radialStrength.visible"
         v-model="radialStrength.value"
@@ -179,26 +272,30 @@
         label="Radial force"
         hide-details
       ></v-slider>
-      <v-combobox
+      <v-select
         v-if="radialField.visible"
         v-model="radialField.value"
         :items="fields"
-        label="Radial field"
+        label="Radial"
+        outlined
+        dense
         hide-details
-      ></v-combobox>
-      <v-slider
-        v-if="gravityStrength.visible"
-        v-model="gravityStrength.value"
-        :min="0.00" :max="0.1" :step="0.001"
-        thumb-label
-        label="Gravity"
-        hide-details
-      ></v-slider>
-      <v-btn v-if="fileDownload.visible" block @click="download()">Download JSON</v-btn>
+        class="mb-4"
+      ></v-select>
+      <v-btn
+        v-if="fileDownload.visible"
+        elevation="0"
+        color="primary"
+        block
+        @click="download()"
+      >
+        Download JSON
+      </v-btn>
       <a ref="downloadAnchor" style="display:none"></a>
       <div class="mb-12">
         {{ nodeCount.toLocaleString() }} nodes, {{ edgeCount.toLocaleString() }} edges
       </div>
+    </v-container>
     </v-navigation-drawer>
     <v-content>
       <div id="map"></div>
@@ -211,6 +308,7 @@ import geo from 'geojs/geo.js';
 import { scaleOrdinal } from 'd3-scale';
 import { schemeCategory10, interpolateBlues } from 'd3-scale-chromatic';
 import { extent } from 'd3';
+import { debounce } from 'lodash';
 import VueMarkdown from 'vue-markdown';
 
 import LayoutWorker from 'worker-loader!./worker.js';
@@ -237,6 +335,22 @@ export default {
       },
       fileUpload: {
         visible: true,
+      },
+      searchField: {
+        visible: true,
+        value: 'degree',
+      },
+      searchOp: {
+        visible: true,
+        value: 'contains',
+      },
+      searchValue: {
+        visible: true,
+        value: '',
+      },
+      searchValueList: {
+        visible: true,
+        value: [],
       },
       showEdges: {
         visible: true,
@@ -325,7 +439,9 @@ export default {
       fileDownload: {
         visible: true,
       },
-      fields: [],
+      fields: ['degree'],
+      searchOperators: ['begins with', 'contains', 'is', 'is one of', 'is at least', 'is at most'],
+      searchItems: [],
       nodeCount: 0,
       edgeCount: 0,
       colorScale: null,
@@ -456,6 +572,39 @@ export default {
         // pointFeature.updateStyleFromArray(updateStyles, null, true);
         this.updateColorScale();
 
+        const opacity = (nodeid) => {
+          if (this.searchValue.value || (this.searchOp.value === 'is one of' && this.searchValueList.value.length > 0)) {
+            const nodeValue = `${graph.nodes[nodeid][this.searchField.value]}`.toLowerCase();
+            const value = this.searchValue.value.toLowerCase();
+            const valueList = this.searchValueList.value.map(d => d.toLowerCase());
+            let match = true;
+            switch (this.searchOp.value) {
+              case 'begins with':
+                match = nodeValue.startsWith(value);
+                break;
+              case 'contains':
+                match = nodeValue.indexOf(value) >= 0;
+                break;
+              case 'is':
+                match = nodeValue === value;
+                break;
+              case 'is one of':
+                match = valueList.indexOf(nodeValue) >= 0;
+                break;
+              case 'is at least':
+                match = +nodeValue >= +value;
+                break;
+              case 'is at most':
+                match = +nodeValue <= +value;
+                break;
+            }
+            if (!match) {
+              return 0.02;
+            }
+          }
+          return this.nodeOpacity.value;
+        }
+
         points = layer.createFeature('point', {
           primitiveShape: 'triangle',
           style: {
@@ -469,8 +618,8 @@ export default {
               }
               return this.colorScale(graph.nodes[nodeid][this.colorField.value]);
             },
-            fillOpacity: this.nodeOpacity.value,
-            strokeOpacity: this.nodeOpacity.value,
+            fillOpacity: opacity,
+            strokeOpacity: opacity,
             strokeWidth: this.nodeStrokeWidth.value,
           },
           position: nodeid => graph.nodes[nodeid]
@@ -563,10 +712,8 @@ export default {
         map.draw();
       }
     },
-    ['nodeOpacity.value'](value) {
+    ['nodeOpacity.value']() {
       if (points) {
-        points.style('strokeOpacity', value);
-        points.style('fillOpacity', value);
         points.modified();
         map.draw();
       }
@@ -604,13 +751,34 @@ export default {
       },
       immediate: true,
     },
-    ['colorField.value'](value) {
+    ['colorField.value']() {
       if (points) {
         this.updateColorScale();
         points.modified();
         map.draw();
       }
     },
+    ['searchField.value'](value) {
+      if (graph) {
+        this.searchItems = [...new Set(graph.nodes.map(d => `${d[value]}`))].sort();
+      }
+      if (points) {
+        points.modified();
+        map.draw();
+      }
+    },
+    ['searchOp.value']() {
+      if (points) {
+        points.modified();
+        map.draw();
+      }
+    },
+    'searchValue.value': debounce(function () {
+      if (points) {
+        points.modified();
+        map.draw();
+      }
+    }, 500),
   },
   methods: {
     upload() {
@@ -679,6 +847,13 @@ export default {
       this.$refs.downloadAnchor.setAttribute('href', URL.createObjectURL(blob));
       this.$refs.downloadAnchor.setAttribute('download', 'graph.json');
       this.$refs.downloadAnchor.click();
+    },
+    updatePoints() {
+      console.log('updatePoints');
+      if (points) {
+        points.modified();
+        map.draw();
+      }
     },
   },
 }
