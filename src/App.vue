@@ -23,6 +23,18 @@
       <div v-for="field in fields" :key="field">
         <b>{{ field }}</b>: {{ selected[field] }}
       </div>
+      <div><b>[Outgoing links]</b></div>
+      <div v-for="edge in selected.outgoing" :key="`${edge.source}--${edge.target}`">
+        <div v-for="field in edgeFields" :key="field">
+          <b>{{ field }}</b>: {{ edge[field] }}
+        </div>
+      </div>
+      <div><b>[Incoming links]</b></div>
+      <div v-for="edge in selected.incoming" :key="`${edge.source}--${edge.target}`">
+        <div v-for="field in edgeFields" :key="field">
+          <b>{{ field }}</b>: {{ edge[field] }}
+        </div>
+      </div>
     </v-card>
     <v-navigation-drawer
       v-model="drawer"
@@ -440,6 +452,7 @@ export default {
         visible: true,
       },
       fields: ['degree'],
+      edgeFields: [],
       searchOperators: ['begins with', 'contains', 'is', 'is one of', 'is at least', 'is at most'],
       searchItems: [],
       nodeCount: 0,
@@ -542,6 +555,17 @@ export default {
         });
         this.fields.sort();
 
+        const ignoreEdgeFields = ['source', 'target', 'weight'];
+        this.edgeFields = [];
+        graph.edges.forEach(e => {
+          Object.keys(e).forEach(f => {
+            if (!ignoreEdgeFields.includes(f) && !this.edgeFields.includes(f)) {
+              this.edgeFields.push(f);
+            }
+          });
+        });
+        this.edgeFields.sort();
+
         map.deleteLayer(layer);
         layer = map.createLayer('feature', {features: ['point', 'line']});
 
@@ -555,10 +579,16 @@ export default {
         lines.visible(this.showEdges.value);
         map.draw();
 
-        graph.nodes.forEach(n => n.adj = []);
+        graph.nodes.forEach(n => {
+          n.adj = [];
+          n.outgoing = [];
+          n.incoming = [];
+        });
         graph.edges.forEach(e => {
           const s = graph.nodes[nodeMap[e.source]];
           const t = graph.nodes[nodeMap[e.target]];
+          s.outgoing.push(e);
+          t.incoming.push(e);
           if (!s.adj.includes(t)) {
             s.adj.push(t);
           }
@@ -589,7 +619,7 @@ export default {
                 match = nodeValue === value;
                 break;
               case 'is one of':
-                match = valueList.indexOf(nodeValue) >= 0;
+                match = valueList.includes(nodeValue);
                 break;
               case 'is at least':
                 match = +nodeValue >= +value;
@@ -639,10 +669,11 @@ export default {
           .geoOn(geo.event.feature.mouseon, (evt) => {
             const nodeid = evt.data;
             const node = graph.nodes[nodeid];
-            this.selected = {id: node.id};
+            this.selected = {id: node.id, incoming: node.incoming, outgoing: node.outgoing};
             this.fields.forEach((field) => this.selected[field] = node[field]);
             node.adj.forEach(n => n.select = 1);
             node.select = 2;
+
             // We are only modifying the fillColor.  If we call
             // points.modified(), we invalidate the rangeTree, which is
             // unnecessary.  points._build(true) just repopulates styles (not
@@ -652,14 +683,13 @@ export default {
             // but that still updates the modified time, causing the
             // rangeTree to be regenerated.  geojs would need a "mark
             // rangeTree as clean" method to work around this.
-            // points.modified();
             points._build(true);
+
             map.draw();
           })
           .geoOn(geo.event.feature.mouseoff, function (evt) {
             this.selected = null;
             graph.nodes.forEach(n => n.select = 0);
-            // points.modified();
             points._build(true);
             map.draw();
           });
