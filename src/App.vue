@@ -532,6 +532,8 @@ export default {
         this.nodeCount = graph.nodes.length;
         this.edgeCount = graph.edges.length;
 
+        this.updateSearchItems();
+
         const ignoreFields = ['x', 'y', 'vx', 'vy', 'select'];
         const xRange = extent(graph.nodes, (d) => d.x);
         const yRange = extent(graph.nodes, (d) => d.y);
@@ -603,11 +605,16 @@ export default {
         this.updateColorScale();
 
         const opacity = (nodeid) => {
+          const defocusOpacity = 0.05;
+          if (this.selected) {
+            return graph.nodes[nodeid].select ? this.nodeOpacity.value : defocusOpacity;
+          }
+
+          let match = true;
           if (this.searchValue.value || (this.searchOp.value === 'is one of' && this.searchValueList.value.length > 0)) {
             const nodeValue = `${graph.nodes[nodeid][this.searchField.value]}`.toLowerCase();
             const value = this.searchValue.value.toLowerCase();
             const valueList = this.searchValueList.value.map(d => d.toLowerCase());
-            let match = true;
             switch (this.searchOp.value) {
               case 'begins with':
                 match = nodeValue.startsWith(value);
@@ -628,11 +635,8 @@ export default {
                 match = +nodeValue <= +value;
                 break;
             }
-            if (!match) {
-              return 0.02;
-            }
           }
-          return this.nodeOpacity.value;
+          return match ? this.nodeOpacity.value : defocusOpacity;
         }
 
         points = layer.createFeature('point', {
@@ -640,9 +644,6 @@ export default {
           style: {
             strokeColor: 'black',
             fillColor: nodeid => {
-              if (graph.nodes[nodeid].select) {
-                return ['yellow', 'red'][graph.nodes[nodeid].select - 1];
-              }
               if (this.colorField.value === 'None') {
                 return 'grey';
               }
@@ -687,7 +688,7 @@ export default {
 
             map.draw();
           })
-          .geoOn(geo.event.feature.mouseoff, function (evt) {
+          .geoOn(geo.event.feature.mouseoff, (evt) => {
             this.selected = null;
             graph.nodes.forEach(n => n.select = 0);
             points._build(true);
@@ -790,7 +791,7 @@ export default {
     },
     ['searchField.value'](value) {
       if (graph) {
-        this.searchItems = [...new Set(graph.nodes.map(d => `${d[value]}`))].sort();
+        this.updateSearchItems();
       }
       if (points) {
         points.modified();
@@ -885,6 +886,9 @@ export default {
         map.draw();
       }
     },
+    updateSearchItems() {
+      this.searchItems = [...new Set(graph.nodes.map(d => `${d[this.searchField.value]}`))].sort();
+    }
   },
 }
 </script>
