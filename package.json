@@ -23,7 +23,7 @@
     "geojs": "^0.19.4",
     "vue": "^2.6.10",
     "vue-markdown": "^2.2.4",
-    "vuetify": "^2.2.8"
+    "vuetify": "^2.6.10"
   },
   "devDependencies": {
     "css-loader": "^3.0.0",
