@@ -19,7 +19,7 @@
   "homepage": "https://kitware.github.io/layoutr",
   "dependencies": {
     "babel-runtime": "^6.26.0",
-    "d3": "^5.9.7",
+    "d3": "^7.6.1",
     "geojs": "^0.19.4",
     "vue": "^2.6.10",
     "vue-markdown": "^2.2.4",
