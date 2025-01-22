@@ -7,7 +7,7 @@ After a git checkout, run the following to serve the application locally:
 
 ```
 npm i
-npm run serve
+npm run dev
 ```
 
 ## Usage
