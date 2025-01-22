@@ -67,8 +67,9 @@ const sendToWorker = (name: string, reference: Ref<any>) => {
   }, { immediate: true });
 };
 
-const nodeOpacity = ref(0.5);
 const edgeWidth = ref(5.0);
+const edgeOpacity = ref(0.5);
+const nodeOpacity = ref(0.5);
 const size = ref(0.5);
 const sizeField = ref('degree');
 const colorField = ref('None');
@@ -206,7 +207,6 @@ const updatePositions = (newPositions: {x: number, y: number}[]) => {
   const edgeCount = graph.links.length;
   if (edgeOffsets.length !== edgeCount * 4) {
     edgeOffsets = new Float32Array(edgeCount * 4);
-    edgeColors = new Float32Array(edgeCount * 4);
   }
   for (let i = 0; i < edgeCount; i++) {
     const { source, target } = graph.links[i];
@@ -216,10 +216,6 @@ const updatePositions = (newPositions: {x: number, y: number}[]) => {
     edgeOffsets[i * 4 + 1] = offsets[sourceIndex * 2 + 1];
     edgeOffsets[i * 4 + 2] = offsets[targetIndex * 2];
     edgeOffsets[i * 4 + 3] = offsets[targetIndex * 2 + 1];
-    edgeColors[i * 4] = 0;
-    edgeColors[i * 4 + 1] = 0;
-    edgeColors[i * 4 + 2] = 0;
-    edgeColors[i * 4 + 3] = 0.5;
   }
   if (gl) {
     loadEdgeOffsetBuffer(gl);
@@ -317,12 +313,9 @@ const fragmentShaderSource = `
 const edgeVertexShaderSource = `
   attribute vec2 aPosition;
   attribute vec4 aOffset;
-  attribute vec4 aColor;
 
   uniform mat3 uMatrix;
   uniform float uWidth;
-
-  varying vec4 vColor;
 
   void main() {
     vec2 dir = normalize(aOffset.zw - aOffset.xy);
@@ -334,22 +327,23 @@ const edgeVertexShaderSource = `
     );
     vec2 position = (uMatrix * pos).xy;
     gl_Position = vec4(position, 0.0, 1.0);
-    vColor = aColor;
   }
 `;
 
 const edgeFragmentShaderSource = `
   precision mediump float;
-  varying vec4 vColor;
+
+  uniform float uOpacity;
 
   void main() {
-    gl_FragColor = vColor;
+    gl_FragColor = vec4(0.0, 0.0, 0.0, uOpacity);
   }
 `;
 
 let edgeProgram: WebGLProgram | null = null;
 let edgeMatrixLocation: WebGLUniformLocation | null = null;
 let edgeWidthLocation: WebGLUniformLocation | null = null;
+let edgeOpacityLocation: WebGLUniformLocation | null = null;
 let edgePositionBuffer: WebGLBuffer | null = null;
 let edgeOffsetBuffer: WebGLBuffer | null = null;
 let edgeColorBuffer: WebGLBuffer | null = null;
@@ -438,20 +432,12 @@ const setupBuffersAndAttributes = (gl: WebGL2RenderingContext, program: WebGLPro
 const setupEdgeBuffersAndAttributes = (gl: WebGL2RenderingContext, program: WebGLProgram) => {
   const aPositionLocation = gl.getAttribLocation(program, 'aPosition');
   const aOffsetLocation = gl.getAttribLocation(program, 'aOffset');
-  const aColorLocation = gl.getAttribLocation(program, 'aColor');
 
   edgePositionBuffer = gl.createBuffer();
   gl.bindBuffer(gl.ARRAY_BUFFER, edgePositionBuffer);
   gl.bufferData(gl.ARRAY_BUFFER, edgePositions, gl.STATIC_DRAW);
   gl.enableVertexAttribArray(aPositionLocation);
   gl.vertexAttribPointer(aPositionLocation, 2, gl.FLOAT, false, 0, 0);
-
-  edgeColorBuffer = gl.createBuffer();
-  gl.bindBuffer(gl.ARRAY_BUFFER, edgeColorBuffer);
-  gl.bufferData(gl.ARRAY_BUFFER, edgeColors, gl.STATIC_DRAW);
-  gl.enableVertexAttribArray(aColorLocation);
-  gl.vertexAttribPointer(aColorLocation, 4, gl.FLOAT, false, 0, 0);
-  gl.vertexAttribDivisor(aColorLocation, 1);
 
   edgeOffsetBuffer = gl.createBuffer();
   gl.bindBuffer(gl.ARRAY_BUFFER, edgeOffsetBuffer);
@@ -498,10 +484,11 @@ const drawScene = (gl: WebGL2RenderingContext) => {
     return;
   }
 
-  if (edgeWidth.value > 0) {
+  if (edgeWidth.value > 0 && edgeOpacity.value > 0) {
     gl.useProgram(edgeProgram);
     gl.uniformMatrix3fv(edgeMatrixLocation, false, matrix);
     gl.uniform1f(edgeWidthLocation, edgeWidth.value);
+    gl.uniform1f(edgeOpacityLocation, edgeOpacity.value);
     setupEdgeBuffersAndAttributes(gl, edgeProgram);
     gl.drawArraysInstanced(gl.TRIANGLE_FAN, 0, 4, graph.links.length || 0);
     // gl.drawArraysInstanced(gl.LINES, 0, 4, graph.links.length || 0);
@@ -654,6 +641,7 @@ onMounted(() => {
   }
   edgeMatrixLocation = gl.getUniformLocation(edgeProgram, 'uMatrix');
   edgeWidthLocation = gl.getUniformLocation(edgeProgram, 'uWidth');
+  edgeOpacityLocation = gl.getUniformLocation(edgeProgram, 'uOpacity');
 
   setupEdgeBuffersAndAttributes(gl, edgeProgram);
 
@@ -823,7 +811,11 @@ const showLayoutControls = ref(true);
     <input ref="fileElement" type="file" class="hidden" @change="upload">
     <div class="mt-2">
       <label class="block text-sm font-medium text-gray-300">Edge Width</label>
-      <input type="range" v-model.number="edgeWidth" :min="0" :max="10" :step="epsilon" class="w-full mt-1">
+      <input type="range" v-model.number="edgeWidth" :min="0" :max="50" :step="epsilon" class="w-full mt-1">
+    </div>
+    <div class="mt-2">
+      <label class="block text-sm font-medium text-gray-300">Edge Opacity</label>
+      <input type="range" v-model.number="edgeOpacity" :min="0" :max="1" :step="epsilon" class="w-full mt-1">
     </div>
     <div class="mt-2">
       <label class="block text-sm font-medium text-gray-300">Node Opacity</label>
