@@ -245,7 +245,6 @@ worker.onmessage = (event) => {
         .filter((field) => !ignoredKeys.includes(field))
     ];
   } else if (type === 'positions') {
-    // console.log(event.data.positions);
     updatePositions(event.data.positions);
   }
 };
@@ -263,7 +262,7 @@ const vertexShaderSource = `
 
   varying vec4 vColor;
   varying vec2 vPosition;
-  varying float vRadius;
+  varying float vAntialiasDistance;
 
   void main() {
     vec2 position = aPosition * aRadius + aOffset;
@@ -271,7 +270,17 @@ const vertexShaderSource = `
     vPosition = aPosition;
     gl_Position = vec4(position, 0.0, 1.0);
     vColor = aColor;
-    vRadius = aRadius * uMatrix[0][0] * uScreenWidthPixels / 2.0;
+
+    // 1px is 2.0 / uScreenWidthPixels in GL screen space.
+    // 1 unit in position space (the full radius of the dot) becomes aRadius * uMatrix[0][0] in GL screen space.
+    // screen / pixel = 2 / uScreenWidthPixels
+    // screen / position = aRadius * uMatrix[0][0]
+    // position / screen = 1 / (aRadius * uMatrix[0][0])
+    // Putting this together you get:
+    // position / pixel = (position / screen) * (screen / pixel)
+    //                  = (1 / (aRadius * uMatrix[0][0])) * (2 / uScreenWidthPixels)
+    //                  = 2 / (aRadius * uMatrix[0][0] * uScreenWidthPixels)
+    vAntialiasDistance = 2.0 / (aRadius * uMatrix[0][0] * uScreenWidthPixels);
   }
 `;
 
@@ -280,16 +289,16 @@ const fragmentShaderSource = `
 
   varying vec4 vColor;
   varying vec2 vPosition;
-  varying float vRadius;
+
+  varying float vAntialiasDistance;
 
   void main() {
     float dist = length(vPosition);
     float radius = 1.0;
-    float antialiasDist = 2.0 / vRadius;
-    float alpha = 1.0 - smoothstep(radius - antialiasDist, radius, dist);
-    if (dist > radius) {
+    if (dist > radius + vAntialiasDistance / 2.0) {
       discard;
     }
+    float alpha = 1.0 - smoothstep(radius - vAntialiasDistance / 2.0, radius + vAntialiasDistance / 2.0, dist);
     gl_FragColor = vec4(vColor.rgb, vColor.a * alpha);
   }
 `;
