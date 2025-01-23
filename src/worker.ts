@@ -5,9 +5,6 @@ postMessage({type: 'ready'});
 
 let size = 1;
 let linkStrength = 1;
-// let xField = 'None';
-// let yField = 'None';
-// let radialField = 'None';
 
 let linkStrengthFunctions = {
   inverseMinDegree: (link: SimLink, _index: number, _links: SimLink[]) => linkStrength * (link as Link).weight / Math.min((link.source as Node).degree, (link.target as Node).degree),
@@ -27,9 +24,6 @@ let link = d3.forceLink().id(d => (d as Node).id).distance(linkDistanceFunctions
 let charge = d3.forceManyBody();
 let collide = d3.forceCollide();
 let center = d3.forceCenter();
-// let x = d3.forceX();
-// let y = d3.forceY();
-// let radial = d3.forceRadial(0);
 let gravity = d3.forceRadial(0);
 let simulation = d3.forceSimulation()
   .alphaMin(0)
@@ -88,14 +82,6 @@ const loadGraph = (graph: SerializedGraph) => {
   postMessage({type: 'graph', graph});
   postMessage({type: 'positions', positions: graph.nodes.map(n => ({x: n.x, y: n.y}))});
 
-  // Initialize data-dependent scales
-
-  // x.x(scales.generateScale(simulation.nodes() as Node[], xField, {area: 1000}));
-  // y.y(scales.generateScale(simulation.nodes() as Node[], yField, {area: 1000}));
-  // radial.radius(scales.generateScale(
-  //   simulation.nodes() as Node[], radialField, {area: 1000, min: 0.5, max: 1.5, invalid: 1.6},
-  // ));
-
   let oldLink = simulation.force('link') || null;
   simulation.force('link', link);
   link.links(graph.links);
@@ -132,26 +118,6 @@ onmessage = function(e) {
     collide.strength(e.data.value);
   } else if (e.data.type === 'centerForce') {
     simulation.force('center', e.data.value ? center : null);
-  } else if (e.data.type === 'xForce') {
-  //   simulation.force('x', e.data.value ? x : null);
-  //   x.strength(e.data.value);
-  } else if (e.data.type === 'xField') {
-  //   xField = e.data.value;
-  //   x.x(scales.generateScale(simulation.nodes() as Node[], xField, {area: 1000}));
-  } else if (e.data.type === 'yForce') {
-  //   simulation.force('y', e.data.value ? y : null);
-  //   y.strength(e.data.value);
-  } else if (e.data.type === 'yField') {
-  //   yField = e.data.value;
-  //   y.y(scales.generateScale(simulation.nodes() as Node[], yField, {min: 0.5, max: -0.5, area: 1000}));
-  } else if (e.data.type === 'radialForce') {
-  //   simulation.force('radial', e.data.value ? radial : null);
-  //   radial.strength(e.data.value);
-  } else if (e.data.type === 'radialField') {
-  //   radialField = e.data.value;
-  //   radial.radius(scales.generateScale(
-  //     simulation.nodes() as Node[], radialField, {area: 1000, min: 0.5, max: 1.5, invalid: 1.6},
-  //   ));
   } else if (e.data.type === 'gravity') {
     simulation.force('gravity', e.data.value ? gravity : null);
     gravity.strength(e.data.value);

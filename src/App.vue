@@ -2,8 +2,6 @@
 import { ref, onMounted, Ref, watch } from 'vue';
 import * as d3 from 'd3';
 import { generateSizeScale } from './scales';
-// import LayoutWorker from './worker-force.ts?worker';
-// import LayoutWorker from './worker-wasm.ts?worker';
 import LayoutWorker from './worker.ts?worker';
 import { SerializedGraph, SimNode } from './types';
 import 'remixicon/fonts/remixicon.css';
@@ -77,8 +75,6 @@ const energy = ref(1);
 sendToWorker('energy', energy);
 const chargeStrength = ref(30);
 sendToWorker('chargeStrength', chargeStrength);
-const chargeFactor = ref(1.0);
-sendToWorker('chargeFactor', chargeFactor);
 const chargeApproximation = ref(1.5);
 sendToWorker('chargeApproximation', chargeApproximation);
 const collideForce = ref(1.0);
@@ -87,18 +83,6 @@ const linkForce = ref(1.0);
 sendToWorker('linkFactor', linkForce);
 const centerForce = ref(true);
 sendToWorker('centerForce', centerForce);
-// const xForce = ref(0);
-// sendToWorker('xForce', xForce);
-// const xField = ref('None');
-// sendToWorker('xField', xField);
-// const yForce = ref(0);
-// sendToWorker('yForce', yForce);
-// const yField = ref('None');
-// sendToWorker('yField', yField);
-// const radialForce = ref(0);
-// sendToWorker('radialForce', radialForce);
-// const radialField = ref('None');
-// sendToWorker('radialField', radialField);
 const gravity = ref(0);
 sendToWorker('gravity', gravity);
 
@@ -665,7 +649,6 @@ onMounted(() => {
   const n = 10000;
 
   for (let i = 0; i < n; i++) {
-    // initialGraph.nodes.push({id: i, x: 200*Math.cos(i * 2 * Math.PI / n), y: 200*Math.sin(i * 2 * Math.PI / n)});
     initialGraph.nodes.push({id: i});
   }
 
@@ -852,10 +835,6 @@ const showLayoutControls = ref(true);
         <input type="range" v-model.number="energy" :min="0" :max="1" :step="epsilon" class="w-full mt-1">
       </div>
       <div class="mt-2">
-        <label class="block text-sm font-medium text-gray-300">Charge Force</label>
-        <input type="range" v-model.number="chargeFactor" :min="0" :max="1" :step="epsilon" class="w-full mt-1">
-      </div>
-      <div class="mt-2">
         <label class="block text-sm font-medium text-gray-300">Charge Strength</label>
         <input type="range" v-model.number="chargeStrength" :min="0" :max="50" :step="epsilon" class="w-full mt-1">
       </div>
@@ -877,39 +856,9 @@ const showLayoutControls = ref(true);
           Center Force
         </label>
       </div>
-      <!-- <div class="mt-2">
-        <label class="block text-sm font-medium text-gray-300">X Force</label>
-        <input type="range" v-model="xForce" :min="0" :max="1" :step="epsilon" class="w-full mt-1">
-      </div>
-      <div class="mt-2">
-        <label class="block text-sm font-medium text-gray-300">X Field</label>
-        <select v-model="xField" class="text-sm w-full mt-1 mb-1 bg-gray-700 text-white border border-gray-600 rounded">
-          <option v-for="field in fields" :key="field" :value="field">{{ field }}</option>
-        </select>
-      </div>
-      <div class="mt-2">
-        <label class="block text-sm font-medium text-gray-300">Y Force</label>
-        <input type="range" v-model="yForce" :min="0" :max="1" :step="epsilon" class="w-full mt-1">
-      </div>
-      <div class="mt-2">
-        <label class="block text-sm font-medium text-gray-300">Y Field</label>
-        <select v-model="yField" class="text-sm w-full mt-1 mb-1 bg-gray-700 text-white border border-gray-600 rounded">
-          <option v-for="field in fields" :key="field" :value="field">{{ field }}</option>
-        </select>
-      </div>
-      <div class="mt-2">
-        <label class="block text-sm font-medium text-gray-300">Radial Force</label>
-        <input type="range" v-model="radialForce" :min="0" :max="1" :step="epsilon" class="w-full mt-1">
-      </div>
-      <div class="mt-2">
-        <label class="block text-sm font-medium text-gray-300">Radial Field</label>
-        <select v-model="radialField" class="text-sm w-full mt-1 mb-1 bg-gray-700 text-white border border-gray-600 rounded">
-          <option v-for="field in fields" :key="field" :value="field">{{ field }}</option>
-        </select>
-      </div> -->
       <div class="mt-2">
         <label class="block text-sm font-medium text-gray-300">Gravity</label>
-        <input type="range" v-model="gravity" :min="0" :max="1" :step="epsilon" class="w-full mt-1">
+        <input type="range" v-model="gravity" :min="0" :max="0.5" :step="epsilon" class="w-full mt-1">
       </div>
       <div class="mt-2">
         <button class="w-full bg-gray-700 text-white border border-gray-600 rounded py-1 hover:bg-gray-600" @click="download()">
