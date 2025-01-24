@@ -6,13 +6,16 @@ in float aRadius;
 
 uniform mat3 uMatrix;
 uniform float uScreenWidthPixels;
+uniform float uStrokeWidth;
 
 out vec4 vColor;
 out vec2 vPosition;
 out float vAntialiasDistance;
+out float vStrokePosition;
 
 void main() {
-  vec2 position = aPosition * aRadius + aOffset;
+  float fullRadius = aRadius + uStrokeWidth / 2.0;
+  vec2 position = aPosition * fullRadius + aOffset;
   position = (uMatrix * vec3(position, 1.0)).xy;
   vPosition = aPosition;
   gl_Position = vec4(position, 0.0, 1.0);
@@ -27,5 +30,6 @@ void main() {
   // position / pixel = (position / screen) * (screen / pixel)
   //                  = (1 / (aRadius * uMatrix[0][0])) * (2 / uScreenWidthPixels)
   //                  = 2 / (aRadius * uMatrix[0][0] * uScreenWidthPixels)
-  vAntialiasDistance = 2.0 / (aRadius * uMatrix[0][0] * uScreenWidthPixels);
+  vAntialiasDistance = 2.0 / (fullRadius * uMatrix[0][0] * uScreenWidthPixels);
+  vStrokePosition = (aRadius - uStrokeWidth / 2.0) / fullRadius;
 }

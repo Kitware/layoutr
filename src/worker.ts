@@ -111,8 +111,6 @@ onmessage = function(e) {
   } else if (e.data.type === 'chargeStrength') {
     simulation.force('charge', e.data.value ? charge : null);
     charge.strength(-e.data.value);
-  } else if (e.data.type === 'chargeFactor') {
-    console.log('Use chargeStrength to change charge');
   } else if (e.data.type === 'collideFactor') {
     simulation.force('collide', e.data.value ? collide : null);
     collide.strength(e.data.value);

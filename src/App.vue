@@ -45,6 +45,8 @@ let colorScale: (value: number | string) => string = () => 'rgba(0,0,0,0.5)';
 let program: WebGLProgram | null = null;
 let uMatrixLocation: WebGLUniformLocation | null = null;
 let uScreenWidthPixelsLocation: WebGLUniformLocation | null = null;
+let uStrokeWidthLocation: WebGLUniformLocation | null = null;
+let uStrokeOpacityLocation: WebGLUniformLocation | null = null;
 let positionBuffer: WebGLBuffer | null = null;
 let offsetBuffer: WebGLBuffer | null = null;
 let colorBuffer: WebGLBuffer | null = null;
@@ -71,6 +73,8 @@ const sendToWorker = (name: string, reference: Ref<any>) => {
 
 const edgeWidth = ref(5.0);
 const edgeOpacity = ref(0.5);
+const strokeWidth = ref(1.0);
+const strokeOpacity = ref(0.5);
 const nodeOpacity = ref(0.5);
 const size = ref(0.5);
 const sizeField = ref('degree');
@@ -466,6 +470,8 @@ const drawScene = (gl: WebGL2RenderingContext) => {
 
   gl.uniformMatrix3fv(uMatrixLocation, false, matrix);
   gl.uniform1f(uScreenWidthPixelsLocation, gl.canvas.width);
+  gl.uniform1f(uStrokeWidthLocation, strokeWidth.value);
+  gl.uniform1f(uStrokeOpacityLocation, strokeOpacity.value);
   gl.drawArraysInstanced(gl.TRIANGLE_FAN, 0, positions.length / 2, graph.nodes.length || 0);
 };
 
@@ -596,6 +602,8 @@ onMounted(() => {
 
   uMatrixLocation = gl.getUniformLocation(program, 'uMatrix');
   uScreenWidthPixelsLocation = gl.getUniformLocation(program, 'uScreenWidthPixels');
+  uStrokeWidthLocation = gl.getUniformLocation(program, 'uStrokeWidth');
+  uStrokeOpacityLocation = gl.getUniformLocation(program, 'uStrokeOpacity');
 
   setupBuffersAndAttributes(gl, program);
 
@@ -781,7 +789,15 @@ const showLayoutControls = ref(true);
       <input type="range" v-model.number="edgeOpacity" :min="0" :max="1" :step="epsilon" class="w-full mt-1">
     </div>
     <div class="mt-2">
-      <label class="block text-sm font-medium text-gray-300">Node Opacity</label>
+      <label class="block text-sm font-medium text-gray-300">Stroke Width</label>
+      <input type="range" v-model.number="strokeWidth" :min="0" :max="50" :step="epsilon" class="w-full mt-1">
+    </div>
+    <div class="mt-2">
+      <label class="block text-sm font-medium text-gray-300">Stroke Opacity</label>
+      <input type="range" v-model.number="strokeOpacity" :min="0" :max="1" :step="epsilon" class="w-full mt-1">
+    </div>
+    <div class="mt-2">
+      <label class="block text-sm font-medium text-gray-300">Fill Opacity</label>
       <input type="range" v-model.number="nodeOpacity" :min="0" :max="1" :step="epsilon" class="w-full mt-1">
     </div>
     <div class="mt-2">
