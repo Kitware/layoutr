@@ -889,7 +889,7 @@ const showLayoutControls = ref(true);
     </div>
 
   </aside>
-  <main class="flex-1 bg-gray-100">
+  <main class="flex-1 bg-gray-100" @wheel.prevent>
     <canvas
       ref="canvas"
       class="w-full h-full"
