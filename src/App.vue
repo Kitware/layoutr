@@ -320,6 +320,8 @@ let aColorLocation: GLint = -1;
 let aRadiusLocation: GLint = -1;
 
 const setupBuffersAndAttributes = (gl: WebGL2RenderingContext, program: WebGLProgram) => {
+  gl.useProgram(program);
+
   aPositionLocation = gl.getAttribLocation(program, 'aPosition');
   aOffsetLocation = gl.getAttribLocation(program, 'aOffset');
   aColorLocation = gl.getAttribLocation(program, 'aColor');
@@ -330,6 +332,7 @@ const setupBuffersAndAttributes = (gl: WebGL2RenderingContext, program: WebGLPro
   gl.bufferData(gl.ARRAY_BUFFER, positions, gl.STATIC_DRAW);
   gl.enableVertexAttribArray(aPositionLocation);
   gl.vertexAttribPointer(aPositionLocation, 2, gl.FLOAT, false, 0, 0);
+  gl.vertexAttribDivisor(aPositionLocation, 0);
 
   offsetBuffer = gl.createBuffer();
   gl.bindBuffer(gl.ARRAY_BUFFER, offsetBuffer);
@@ -357,6 +360,8 @@ let aEdgePositionLocation: GLint = -1;
 let aEdgeOffsetLocation: GLint = -1;
 
 const setupEdgeBuffersAndAttributes = (gl: WebGL2RenderingContext, program: WebGLProgram) => {
+  gl.useProgram(edgeProgram);
+
   aEdgePositionLocation = gl.getAttribLocation(program, 'aPosition');
   aEdgeOffsetLocation = gl.getAttribLocation(program, 'aOffset');
 
@@ -365,6 +370,7 @@ const setupEdgeBuffersAndAttributes = (gl: WebGL2RenderingContext, program: WebG
   gl.bufferData(gl.ARRAY_BUFFER, edgePositions, gl.STATIC_DRAW);
   gl.enableVertexAttribArray(aEdgePositionLocation);
   gl.vertexAttribPointer(aEdgePositionLocation, 2, gl.FLOAT, false, 0, 0);
+  gl.vertexAttribDivisor(aEdgePositionLocation, 0);
 
   edgeOffsetBuffer = gl.createBuffer();
   gl.bindBuffer(gl.ARRAY_BUFFER, edgeOffsetBuffer);
@@ -421,6 +427,7 @@ const drawScene = (gl: WebGL2RenderingContext) => {
     gl.bindBuffer(gl.ARRAY_BUFFER, edgePositionBuffer);
     gl.enableVertexAttribArray(aEdgePositionLocation);
     gl.vertexAttribPointer(aEdgePositionLocation, 2, gl.FLOAT, false, 0, 0);
+    gl.vertexAttribDivisor(aEdgePositionLocation, 0);
 
     gl.bindBuffer(gl.ARRAY_BUFFER, edgeOffsetBuffer);
     gl.enableVertexAttribArray(aEdgeOffsetLocation);
@@ -440,6 +447,7 @@ const drawScene = (gl: WebGL2RenderingContext) => {
   gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
   gl.enableVertexAttribArray(aPositionLocation);
   gl.vertexAttribPointer(aPositionLocation, 2, gl.FLOAT, false, 0, 0);
+  gl.vertexAttribDivisor(aPositionLocation, 0);
 
   gl.bindBuffer(gl.ARRAY_BUFFER, offsetBuffer);
   gl.enableVertexAttribArray(aOffsetLocation);
