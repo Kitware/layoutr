@@ -5,6 +5,10 @@ import { generateSizeScale } from './scales';
 import LayoutWorker from './worker.ts?worker';
 import { SerializedGraph, SimNode } from './types';
 import 'remixicon/fonts/remixicon.css';
+import nodeVertexShaderSource from './shaders/node.vert?raw';
+import nodeFragmentShaderSource from './shaders/node.frag?raw';
+import edgeVertexShaderSource from './shaders/link.vert?raw';
+import edgeFragmentShaderSource from './shaders/link.frag?raw';
 
 let graph : SerializedGraph = {
   nodes: [],
@@ -201,9 +205,12 @@ const updatePositions = (newPositions: {x: number, y: number}[]) => {
     edgeOffsets[i * 4 + 2] = offsets[targetIndex * 2];
     edgeOffsets[i * 4 + 3] = offsets[targetIndex * 2 + 1];
   }
+  console.log('edgeOffsets created', edgeOffsets.length);
   if (gl) {
     loadEdgeOffsetBuffer(gl);
     loadEdgeColorBuffer(gl);
+  } else {
+    console.log('no gl');
   }
 };
 
@@ -230,7 +237,6 @@ worker.onmessage = (event) => {
   if (type === 'ready') {
     workerReady = true;
   } else if (type === 'graph') {
-    // console.log(event.data.graph);
     graph = event.data.graph;
     updateNeighbors();
     updateRadiusBuffer();
@@ -245,93 +251,13 @@ worker.onmessage = (event) => {
         .filter((field) => !ignoredKeys.includes(field))
     ];
   } else if (type === 'positions') {
+    // console.log('positions');
+    // console.log(event.data.positions.length);
     updatePositions(event.data.positions);
   }
 };
 
 const canvas = ref<HTMLCanvasElement | null>(null);
-
-const vertexShaderSource = `
-  attribute vec2 aPosition;
-  attribute vec2 aOffset;
-  attribute vec4 aColor;
-  attribute float aRadius;
-
-  uniform mat3 uMatrix;
-  uniform float uScreenWidthPixels;
-
-  varying vec4 vColor;
-  varying vec2 vPosition;
-  varying float vAntialiasDistance;
-
-  void main() {
-    vec2 position = aPosition * aRadius + aOffset;
-    position = (uMatrix * vec3(position, 1.0)).xy;
-    vPosition = aPosition;
-    gl_Position = vec4(position, 0.0, 1.0);
-    vColor = aColor;
-
-    // 1px is 2.0 / uScreenWidthPixels in GL screen space.
-    // 1 unit in position space (the full radius of the dot) becomes aRadius * uMatrix[0][0] in GL screen space.
-    // screen / pixel = 2 / uScreenWidthPixels
-    // screen / position = aRadius * uMatrix[0][0]
-    // position / screen = 1 / (aRadius * uMatrix[0][0])
-    // Putting this together you get:
-    // position / pixel = (position / screen) * (screen / pixel)
-    //                  = (1 / (aRadius * uMatrix[0][0])) * (2 / uScreenWidthPixels)
-    //                  = 2 / (aRadius * uMatrix[0][0] * uScreenWidthPixels)
-    vAntialiasDistance = 2.0 / (aRadius * uMatrix[0][0] * uScreenWidthPixels);
-  }
-`;
-
-const fragmentShaderSource = `
-  precision mediump float;
-
-  varying vec4 vColor;
-  varying vec2 vPosition;
-
-  varying float vAntialiasDistance;
-
-  void main() {
-    float dist = length(vPosition);
-    float radius = 1.0;
-    if (dist > radius + vAntialiasDistance / 2.0) {
-      discard;
-    }
-    float alpha = 1.0 - smoothstep(radius - vAntialiasDistance / 2.0, radius + vAntialiasDistance / 2.0, dist);
-    gl_FragColor = vec4(vColor.rgb, vColor.a * alpha);
-  }
-`;
-
-const edgeVertexShaderSource = `
-  attribute vec2 aPosition;
-  attribute vec4 aOffset;
-
-  uniform mat3 uMatrix;
-  uniform float uWidth;
-
-  void main() {
-    vec2 dir = normalize(aOffset.zw - aOffset.xy);
-    vec2 normal = vec2(-dir.y, dir.x);
-    vec3 pos = vec3(
-      aPosition.x * aOffset.x + (1.0 - aPosition.x) * aOffset.z + (aPosition.y - 0.5) * uWidth * normal.x,
-      aPosition.x * aOffset.y + (1.0 - aPosition.x) * aOffset.w + (aPosition.y - 0.5) * uWidth * normal.y,
-      1.0
-    );
-    vec2 position = (uMatrix * pos).xy;
-    gl_Position = vec4(position, 0.0, 1.0);
-  }
-`;
-
-const edgeFragmentShaderSource = `
-  precision mediump float;
-
-  uniform float uOpacity;
-
-  void main() {
-    gl_FragColor = vec4(0.0, 0.0, 0.0, uOpacity);
-  }
-`;
 
 let edgeProgram: WebGLProgram | null = null;
 let edgeMatrixLocation: WebGLUniformLocation | null = null;
@@ -388,11 +314,16 @@ const createShader = (gl: WebGL2RenderingContext, type: GLenum, source: string) 
   return shader;
 };
 
+let aPositionLocation: GLint = -1;
+let aOffsetLocation: GLint = -1;
+let aColorLocation: GLint = -1;
+let aRadiusLocation: GLint = -1;
+
 const setupBuffersAndAttributes = (gl: WebGL2RenderingContext, program: WebGLProgram) => {
-  const aPositionLocation = gl.getAttribLocation(program, 'aPosition');
-  const aOffsetLocation = gl.getAttribLocation(program, 'aOffset');
-  const aColorLocation = gl.getAttribLocation(program, 'aColor');
-  const aRadiusLocation = gl.getAttribLocation(program, 'aRadius');
+  aPositionLocation = gl.getAttribLocation(program, 'aPosition');
+  aOffsetLocation = gl.getAttribLocation(program, 'aOffset');
+  aColorLocation = gl.getAttribLocation(program, 'aColor');
+  aRadiusLocation = gl.getAttribLocation(program, 'aRadius');
 
   positionBuffer = gl.createBuffer();
   gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
@@ -422,22 +353,25 @@ const setupBuffersAndAttributes = (gl: WebGL2RenderingContext, program: WebGLPro
   gl.vertexAttribDivisor(aRadiusLocation, 1);
 };
 
+let aEdgePositionLocation: GLint = -1;
+let aEdgeOffsetLocation: GLint = -1;
+
 const setupEdgeBuffersAndAttributes = (gl: WebGL2RenderingContext, program: WebGLProgram) => {
-  const aPositionLocation = gl.getAttribLocation(program, 'aPosition');
-  const aOffsetLocation = gl.getAttribLocation(program, 'aOffset');
+  aEdgePositionLocation = gl.getAttribLocation(program, 'aPosition');
+  aEdgeOffsetLocation = gl.getAttribLocation(program, 'aOffset');
 
   edgePositionBuffer = gl.createBuffer();
   gl.bindBuffer(gl.ARRAY_BUFFER, edgePositionBuffer);
   gl.bufferData(gl.ARRAY_BUFFER, edgePositions, gl.STATIC_DRAW);
-  gl.enableVertexAttribArray(aPositionLocation);
-  gl.vertexAttribPointer(aPositionLocation, 2, gl.FLOAT, false, 0, 0);
+  gl.enableVertexAttribArray(aEdgePositionLocation);
+  gl.vertexAttribPointer(aEdgePositionLocation, 2, gl.FLOAT, false, 0, 0);
 
   edgeOffsetBuffer = gl.createBuffer();
   gl.bindBuffer(gl.ARRAY_BUFFER, edgeOffsetBuffer);
   gl.bufferData(gl.ARRAY_BUFFER, edgeOffsets, gl.DYNAMIC_DRAW);
-  gl.enableVertexAttribArray(aOffsetLocation);
-  gl.vertexAttribPointer(aOffsetLocation, 4, gl.FLOAT, false, 0, 0);
-  gl.vertexAttribDivisor(aOffsetLocation, 1);
+  gl.enableVertexAttribArray(aEdgeOffsetLocation);
+  gl.vertexAttribPointer(aEdgeOffsetLocation, 4, gl.FLOAT, false, 0, 0);
+  gl.vertexAttribDivisor(aEdgeOffsetLocation, 1);
 };
 
 const loadOffsetBuffer = (gl: WebGL2RenderingContext) => {
@@ -479,10 +413,20 @@ const drawScene = (gl: WebGL2RenderingContext) => {
 
   if (edgeWidth.value > 0 && edgeOpacity.value > 0) {
     gl.useProgram(edgeProgram);
+
     gl.uniformMatrix3fv(edgeMatrixLocation, false, matrix);
     gl.uniform1f(edgeWidthLocation, edgeWidth.value);
     gl.uniform1f(edgeOpacityLocation, edgeOpacity.value);
-    setupEdgeBuffersAndAttributes(gl, edgeProgram);
+
+    gl.bindBuffer(gl.ARRAY_BUFFER, edgePositionBuffer);
+    gl.enableVertexAttribArray(aEdgePositionLocation);
+    gl.vertexAttribPointer(aEdgePositionLocation, 2, gl.FLOAT, false, 0, 0);
+
+    gl.bindBuffer(gl.ARRAY_BUFFER, edgeOffsetBuffer);
+    gl.enableVertexAttribArray(aEdgeOffsetLocation);
+    gl.vertexAttribPointer(aEdgeOffsetLocation, 4, gl.FLOAT, false, 0, 0);
+    gl.vertexAttribDivisor(aEdgeOffsetLocation, 1);
+
     gl.drawArraysInstanced(gl.TRIANGLE_FAN, 0, 4, graph.links.length || 0);
     // gl.drawArraysInstanced(gl.LINES, 0, 4, graph.links.length || 0);
   }
@@ -492,7 +436,26 @@ const drawScene = (gl: WebGL2RenderingContext) => {
   }
 
   gl.useProgram(program);
-  setupBuffersAndAttributes(gl, program);
+
+  gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
+  gl.enableVertexAttribArray(aPositionLocation);
+  gl.vertexAttribPointer(aPositionLocation, 2, gl.FLOAT, false, 0, 0);
+
+  gl.bindBuffer(gl.ARRAY_BUFFER, offsetBuffer);
+  gl.enableVertexAttribArray(aOffsetLocation);
+  gl.vertexAttribPointer(aOffsetLocation, 2, gl.FLOAT, false, 0, 0);
+  gl.vertexAttribDivisor(aOffsetLocation, 1);
+
+  gl.bindBuffer(gl.ARRAY_BUFFER, colorBuffer);
+  gl.enableVertexAttribArray(aColorLocation);
+  gl.vertexAttribPointer(aColorLocation, 4, gl.FLOAT, false, 0, 0);
+  gl.vertexAttribDivisor(aColorLocation, 1);
+
+  gl.bindBuffer(gl.ARRAY_BUFFER, radiusBuffer);
+  gl.enableVertexAttribArray(aRadiusLocation);
+  gl.vertexAttribPointer(aRadiusLocation, 1, gl.FLOAT, false, 0, 0);
+  gl.vertexAttribDivisor(aRadiusLocation, 1);
+
   gl.uniformMatrix3fv(uMatrixLocation, false, matrix);
   gl.uniform1f(uScreenWidthPixelsLocation, gl.canvas.width);
   gl.drawArraysInstanced(gl.TRIANGLE_FAN, 0, positions.length / 2, graph.nodes.length || 0);
@@ -617,7 +580,7 @@ onMounted(() => {
     return;
   }
   setupWebGL(gl);
-  program = createProgram(gl, vertexShaderSource, fragmentShaderSource);
+  program = createProgram(gl, nodeVertexShaderSource, nodeFragmentShaderSource);
   if (program === null) {
     return;
   }
