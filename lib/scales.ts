@@ -18,8 +18,8 @@ export const generateScale = (arr: Node[], field: string, {area = null, min = -0
   }
 };
 
-export const generateSizeScale = (arr: Node[], field: string, size: number) => {
-  if (field === 'None') {
+export const generateSizeScale = (arr: Node[], field: string | null, size: number) => {
+  if (field === null) {
     return () => 250 * size;
   }
   const sizeScale = generateScale(arr, field, {min: 10*10, max: 500*500, invalid: 2});

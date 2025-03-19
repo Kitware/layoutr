@@ -1,671 +1,63 @@
 <script setup lang="ts">
-import { ref, onMounted, Ref, watch } from 'vue';
-import * as d3 from 'd3';
-import { generateSizeScale } from './scales';
-import LayoutWorker from './worker.ts?worker';
-import { SerializedGraph, SimNode } from './types';
+import { ref, onMounted, watchEffect } from 'vue';
+import { Layout } from '../lib/index';
+import { Node } from '../lib/types';
 import 'remixicon/fonts/remixicon.css';
-import nodeVertexShaderSource from './shaders/node.vert?raw';
-import nodeFragmentShaderSource from './shaders/node.frag?raw';
-import edgeVertexShaderSource from './shaders/link.vert?raw';
-import edgeFragmentShaderSource from './shaders/link.frag?raw';
 
-let graph : SerializedGraph = {
-  nodes: [],
-  links: [],
-};
-
-let neighbors: number[][] = [];
-
-const updateNeighbors = () => {
-  const n = graph.nodes.length;
-  const nodeMap: {[key: string]: number} = {};
-  const value: number[][] = [];
-  value.length = n;
-  for (let i = 0; i < n; i++) {
-    nodeMap[graph.nodes[i].id] = i;
-    value[i] = [];
-  }
-  for (const {source, target} of graph.links) {
-    const s = nodeMap[source];
-    const t = nodeMap[target];
-    value[s].push(t);
-    value[t].push(s);
-  }
-  neighbors = value;
-}
-
-let positions = new Float32Array([-Math.sqrt(3), -1, Math.sqrt(3), -1, 0, 2]);
-let offsets = new Float32Array();
-let baseColors = new Float32Array();
-let colors = new Float32Array();
-let radii = new Float32Array();
-let colorScale: (value: number | string) => string = () => 'rgba(0,0,0,0.5)';
-
-let program: WebGLProgram | null = null;
-let uMatrixLocation: WebGLUniformLocation | null = null;
-let uScreenWidthPixelsLocation: WebGLUniformLocation | null = null;
-let uStrokeWidthLocation: WebGLUniformLocation | null = null;
-let uStrokeOpacityLocation: WebGLUniformLocation | null = null;
-let positionBuffer: WebGLBuffer | null = null;
-let offsetBuffer: WebGLBuffer | null = null;
-let colorBuffer: WebGLBuffer | null = null;
-let radiusBuffer: WebGLBuffer | null = null;
-
-const worker = new LayoutWorker();
-
-let gl: WebGL2RenderingContext | null = null;
-
-const sendToWorker = (name: string, reference: Ref<any>) => {
-  let timeout: ReturnType<typeof setTimeout> | null = null;
-  watch([reference], () => {
-    if (timeout !== null) {
-      clearTimeout(timeout);
-    }
-    timeout = setTimeout(() => {
-      worker.postMessage({
-        type: name,
-        value: reference.value,
-      });
-    }, 500);
-  }, { immediate: true });
-};
-
-const edgeWidth = ref(5.0);
-const edgeOpacity = ref(0.5);
-const strokeWidth = ref(1.0);
-const strokeOpacity = ref(0.5);
-const nodeOpacity = ref(0.5);
-const size = ref(0.5);
-const sizeField = ref('degree');
-const colorField = ref('None');
-const energy = ref(1);
-sendToWorker('energy', energy);
-const chargeStrength = ref(30);
-sendToWorker('chargeStrength', chargeStrength);
-const chargeApproximation = ref(1.5);
-sendToWorker('chargeApproximation', chargeApproximation);
-const collideForce = ref(1.0);
-sendToWorker('collideFactor', collideForce);
-const linkForce = ref(1.0);
-sendToWorker('linkFactor', linkForce);
-const centerForce = ref(true);
-sendToWorker('centerForce', centerForce);
-const gravity = ref(0);
-sendToWorker('gravity', gravity);
-
-const hoveredIndex = ref(-1);
-
-const updateRadiusBuffer = () => {
-  const n = graph.nodes.length;
-  if (radii.length !== n) {
-    radii = new Float32Array(n);
-  }
-  const sizeScale = generateSizeScale(graph.nodes, sizeField.value, size.value);
-  for (let i = 0; i < n; i++) {
-    radii[i] = sizeScale(graph.nodes[i] as SimNode, i, graph.nodes as SimNode[]);
-  }
-  worker.postMessage({ type: 'radii', value: radii });
-  if (gl) {
-    loadRadiusBuffer(gl);
-  }
-}
-
-watch([sizeField, size], () => {
-  updateRadiusBuffer();
-}, { immediate: true });
-
-const addHoverColor = () => {
-  if (colors.length !== baseColors.length) {
-    colors = new Float32Array(baseColors.length);
-  }
-  colors.set(baseColors);
-  const hovered = hoveredIndex.value;
-  if (hovered !== -1) {
-    // Make the hovered node and neighbors yellow
-    colors[hoveredIndex.value * 4] = 1;
-    colors[hoveredIndex.value * 4 + 1] = 1;
-    colors[hoveredIndex.value * 4 + 2] = 0;
-    colors[hoveredIndex.value * 4 + 3] = 1;
-    const adjacent = neighbors[hovered];
-    const n = adjacent.length;
-    for (let i = 0; i < n; i++) {
-      const adj = adjacent[i] * 4;
-      colors[adj + 0] = 1;
-      colors[adj + 1] = 1;
-      colors[adj + 2] = 0;
-      colors[adj + 3] = 1;
-    }
-
-    // Fade all other nodes
-    // const n = graph.value.nodes.length;
-    // const opacity = nodeOpacity.value;
-    // for (let i = 0; i < n; i++) {
-    //   colors[i * 4 + 3] = (i === hovered ? (1 + opacity) / 2 : opacity / 2);
-    // }
-  }
-  if (gl) {
-    loadColorBuffer(gl);
-  }
-};
-
-const updateColors = () => {
-  if (colorField.value === 'None' || graph.nodes.length === 0) {
-    colorScale = () => 'steelblue';
-  } else if (typeof graph.nodes[0][colorField.value] === 'string') {
-    const ordinal = d3.scaleOrdinal(d3.schemeCategory10);
-    colorScale = (val: number | string) => ordinal(`${val}`);
-  } else {
-    const maximum = graph.nodes.reduce((prev, cur) => Math.max(prev, +cur[colorField.value]), -Infinity);
-    colorScale = (val: number | string) => d3.interpolateBlues(0.2 + 0.8*(+val / maximum));
-  }
-
-  const n = graph.nodes.length;
-  if (baseColors.length !== n * 4) {
-    baseColors = new Float32Array(n * 4);
-  }
-  for (let i = 0; i < n; i++) {
-    const c = d3.color(colorScale(graph.nodes[i][colorField.value]))?.rgb() || { r: 0, g: 0, b: 0 };
-    baseColors[i * 4] = c.r / 255;
-    baseColors[i * 4 + 1] = c.g / 255;
-    baseColors[i * 4 + 2] = c.b / 255;
-    baseColors[i * 4 + 3] = nodeOpacity.value;
-  }
-  addHoverColor();
-};
-
-watch([colorField, nodeOpacity], () => {
-  updateColors();
-}, { immediate: true });
-
-let edgePositions = new Float32Array([0, 0, 1, 0, 1, 1, 0, 1]);
-let edgeOffsets = new Float32Array();
-let edgeColors = new Float32Array();
-
-let nodeIdToIndexMap: {[id: string | number]: number} = {};
-
-const updatePositions = (newPositions: {x: number, y: number}[]) => {
-  if (offsets.length !== newPositions.length * 2) {
-    offsets = new Float32Array(newPositions.length * 2);
-  }
-  for (let i = 0; i < newPositions.length; i++) {
-    offsets[i * 2] = newPositions[i].x;
-    offsets[i * 2 + 1] = newPositions[i].y;
-  }
-  if (gl) {
-    loadOffsetBuffer(gl);
-  }
-
-  const edgeCount = graph.links.length;
-  if (edgeOffsets.length !== edgeCount * 4) {
-    edgeOffsets = new Float32Array(edgeCount * 4);
-  }
-  for (let i = 0; i < edgeCount; i++) {
-    const { source, target } = graph.links[i];
-    const sourceIndex = nodeIdToIndexMap[source];
-    const targetIndex = nodeIdToIndexMap[target];
-    edgeOffsets[i * 4] = offsets[sourceIndex * 2];
-    edgeOffsets[i * 4 + 1] = offsets[sourceIndex * 2 + 1];
-    edgeOffsets[i * 4 + 2] = offsets[targetIndex * 2];
-    edgeOffsets[i * 4 + 3] = offsets[targetIndex * 2 + 1];
-  }
-  console.log('edgeOffsets created', edgeOffsets.length);
-  if (gl) {
-    loadEdgeOffsetBuffer(gl);
-    loadEdgeColorBuffer(gl);
-  } else {
-    console.log('no gl');
-  }
-};
-
-const loadEdgeOffsetBuffer = (gl: WebGL2RenderingContext) => {
-  if (!edgeOffsetBuffer) {
-    return;
-  }
-  gl.bindBuffer(gl.ARRAY_BUFFER, edgeOffsetBuffer);
-  gl.bufferData(gl.ARRAY_BUFFER, edgeOffsets, gl.DYNAMIC_DRAW);
-};
-
-const loadEdgeColorBuffer = (gl: WebGL2RenderingContext) => {
-  if (!edgeColorBuffer) {
-    return;
-  }
-  gl.bindBuffer(gl.ARRAY_BUFFER, edgeColorBuffer);
-  gl.bufferData(gl.ARRAY_BUFFER, edgeColors, gl.STATIC_DRAW);
-};
-
-let workerReady = false;
-
-worker.onmessage = (event) => {
-  const { type } = event.data;
-  if (type === 'ready') {
-    workerReady = true;
-  } else if (type === 'graph') {
-    graph = event.data.graph;
-    updateNeighbors();
-    updateRadiusBuffer();
-    updateColors();
-    nodeIdToIndexMap = {};
-    for (let i = 0; i < graph.nodes.length; i++) {
-      nodeIdToIndexMap[graph.nodes[i].id] = i;
-    }
-    fields.value = [
-      'None',
-      ...Object.keys(graph.nodes[0] || {})
-        .filter((field) => !ignoredKeys.includes(field))
-    ];
-  } else if (type === 'positions') {
-    // console.log('positions');
-    // console.log(event.data.positions.length);
-    updatePositions(event.data.positions);
-  }
-};
+let layout: Layout | null = null;
 
 const canvas = ref<HTMLCanvasElement | null>(null);
-
-let edgeProgram: WebGLProgram | null = null;
-let edgeMatrixLocation: WebGLUniformLocation | null = null;
-let edgeWidthLocation: WebGLUniformLocation | null = null;
-let edgeOpacityLocation: WebGLUniformLocation | null = null;
-let edgePositionBuffer: WebGLBuffer | null = null;
-let edgeOffsetBuffer: WebGLBuffer | null = null;
-let edgeColorBuffer: WebGLBuffer | null = null;
-
-let scale = 0.001;
-let panX = 0.0;
-let panY = 0.0;
-let mouseDown = false;
-let lastMouseX: number | null = null;
-let lastMouseY: number | null = null;
-
-const setupWebGL = (gl: WebGL2RenderingContext) => {
-  gl.enable(gl.BLEND);
-  gl.blendFuncSeparate(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA, gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
-  gl.clearColor(1.0, 1.0, 1.0, 1.0);
-};
-
-const createProgram = (gl: WebGL2RenderingContext, vertexShaderSource: string, fragmentShaderSource: string) => {
-  const vertexShader = createShader(gl, gl.VERTEX_SHADER, vertexShaderSource);
-  const fragmentShader = createShader(gl, gl.FRAGMENT_SHADER, fragmentShaderSource);
-  const program = gl.createProgram();
-  if (!program || !vertexShader || !fragmentShader) {
-    console.error('Failed to create program');
-    return null;
-  }
-  gl.attachShader(program, vertexShader);
-  gl.attachShader(program, fragmentShader);
-  gl.linkProgram(program);
-  if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
-    console.error('Program failed to link:', gl.getProgramInfoLog(program));
-    return null;
-  }
-  return program;
-};
-
-const createShader = (gl: WebGL2RenderingContext, type: GLenum, source: string) => {
-  const shader = gl.createShader(type);
-  if (!shader) {
-    console.error('Failed to create shader');
-    return null;
-  }
-  gl.shaderSource(shader, source);
-  gl.compileShader(shader);
-  if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
-    console.error('Shader compile failed with:', gl.getShaderInfoLog(shader));
-    gl.deleteShader(shader);
-    return null;
-  }
-  return shader;
-};
-
-let aPositionLocation: GLint = -1;
-let aOffsetLocation: GLint = -1;
-let aColorLocation: GLint = -1;
-let aRadiusLocation: GLint = -1;
-
-const setupBuffersAndAttributes = (gl: WebGL2RenderingContext, program: WebGLProgram) => {
-  gl.useProgram(program);
-
-  aPositionLocation = gl.getAttribLocation(program, 'aPosition');
-  aOffsetLocation = gl.getAttribLocation(program, 'aOffset');
-  aColorLocation = gl.getAttribLocation(program, 'aColor');
-  aRadiusLocation = gl.getAttribLocation(program, 'aRadius');
-
-  positionBuffer = gl.createBuffer();
-  gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
-  gl.bufferData(gl.ARRAY_BUFFER, positions, gl.STATIC_DRAW);
-  gl.enableVertexAttribArray(aPositionLocation);
-  gl.vertexAttribPointer(aPositionLocation, 2, gl.FLOAT, false, 0, 0);
-  gl.vertexAttribDivisor(aPositionLocation, 0);
-
-  offsetBuffer = gl.createBuffer();
-  gl.bindBuffer(gl.ARRAY_BUFFER, offsetBuffer);
-  gl.bufferData(gl.ARRAY_BUFFER, offsets, gl.DYNAMIC_DRAW);
-  gl.enableVertexAttribArray(aOffsetLocation);
-  gl.vertexAttribPointer(aOffsetLocation, 2, gl.FLOAT, false, 0, 0);
-  gl.vertexAttribDivisor(aOffsetLocation, 1);
-
-  colorBuffer = gl.createBuffer();
-  gl.bindBuffer(gl.ARRAY_BUFFER, colorBuffer);
-  gl.bufferData(gl.ARRAY_BUFFER, colors, gl.STATIC_DRAW);
-  gl.enableVertexAttribArray(aColorLocation);
-  gl.vertexAttribPointer(aColorLocation, 4, gl.FLOAT, false, 0, 0);
-  gl.vertexAttribDivisor(aColorLocation, 1);
-
-  radiusBuffer = gl.createBuffer();
-  gl.bindBuffer(gl.ARRAY_BUFFER, radiusBuffer);
-  gl.bufferData(gl.ARRAY_BUFFER, radii, gl.STATIC_DRAW);
-  gl.enableVertexAttribArray(aRadiusLocation);
-  gl.vertexAttribPointer(aRadiusLocation, 1, gl.FLOAT, false, 0, 0);
-  gl.vertexAttribDivisor(aRadiusLocation, 1);
-};
-
-let aEdgePositionLocation: GLint = -1;
-let aEdgeOffsetLocation: GLint = -1;
-
-const setupEdgeBuffersAndAttributes = (gl: WebGL2RenderingContext, program: WebGLProgram) => {
-  gl.useProgram(edgeProgram);
-
-  aEdgePositionLocation = gl.getAttribLocation(program, 'aPosition');
-  aEdgeOffsetLocation = gl.getAttribLocation(program, 'aOffset');
-
-  edgePositionBuffer = gl.createBuffer();
-  gl.bindBuffer(gl.ARRAY_BUFFER, edgePositionBuffer);
-  gl.bufferData(gl.ARRAY_BUFFER, edgePositions, gl.STATIC_DRAW);
-  gl.enableVertexAttribArray(aEdgePositionLocation);
-  gl.vertexAttribPointer(aEdgePositionLocation, 2, gl.FLOAT, false, 0, 0);
-  gl.vertexAttribDivisor(aEdgePositionLocation, 0);
-
-  edgeOffsetBuffer = gl.createBuffer();
-  gl.bindBuffer(gl.ARRAY_BUFFER, edgeOffsetBuffer);
-  gl.bufferData(gl.ARRAY_BUFFER, edgeOffsets, gl.DYNAMIC_DRAW);
-  gl.enableVertexAttribArray(aEdgeOffsetLocation);
-  gl.vertexAttribPointer(aEdgeOffsetLocation, 4, gl.FLOAT, false, 0, 0);
-  gl.vertexAttribDivisor(aEdgeOffsetLocation, 1);
-};
-
-const loadOffsetBuffer = (gl: WebGL2RenderingContext) => {
-  if (!offsetBuffer) {
-    return;
-  }
-  gl.bindBuffer(gl.ARRAY_BUFFER, offsetBuffer);
-  gl.bufferData(gl.ARRAY_BUFFER, offsets, gl.DYNAMIC_DRAW);
-};
-
-const loadColorBuffer = (gl: WebGL2RenderingContext) => {
-  if (!colorBuffer) {
-    return;
-  }
-  gl.bindBuffer(gl.ARRAY_BUFFER, colorBuffer);
-  gl.bufferData(gl.ARRAY_BUFFER, colors, gl.STATIC_DRAW);
-};
-
-const loadRadiusBuffer = (gl: WebGL2RenderingContext) => {
-  if (!radiusBuffer) {
-    return;
-  }
-  gl.bindBuffer(gl.ARRAY_BUFFER, radiusBuffer);
-  gl.bufferData(gl.ARRAY_BUFFER, radii, gl.STATIC_DRAW);
-};
-
-const drawScene = (gl: WebGL2RenderingContext) => {
-  gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
-  const aspectRatio = gl.canvas.width / gl.canvas.height;
-  const matrix = [
-    scale / aspectRatio, 0, 0,
-    0, scale, 0,
-    panX, panY, 1
-  ];
-
-  if (edgeProgram === null) {
-    return;
-  }
-
-  if (edgeWidth.value > 0 && edgeOpacity.value > 0) {
-    gl.useProgram(edgeProgram);
-
-    gl.uniformMatrix3fv(edgeMatrixLocation, false, matrix);
-    gl.uniform1f(edgeWidthLocation, edgeWidth.value);
-    gl.uniform1f(edgeOpacityLocation, edgeOpacity.value);
-
-    gl.bindBuffer(gl.ARRAY_BUFFER, edgePositionBuffer);
-    gl.enableVertexAttribArray(aEdgePositionLocation);
-    gl.vertexAttribPointer(aEdgePositionLocation, 2, gl.FLOAT, false, 0, 0);
-    gl.vertexAttribDivisor(aEdgePositionLocation, 0);
-
-    gl.bindBuffer(gl.ARRAY_BUFFER, edgeOffsetBuffer);
-    gl.enableVertexAttribArray(aEdgeOffsetLocation);
-    gl.vertexAttribPointer(aEdgeOffsetLocation, 4, gl.FLOAT, false, 0, 0);
-    gl.vertexAttribDivisor(aEdgeOffsetLocation, 1);
-
-    gl.drawArraysInstanced(gl.TRIANGLE_FAN, 0, 4, graph.links.length || 0);
-    // gl.drawArraysInstanced(gl.LINES, 0, 4, graph.links.length || 0);
-  }
-
-  if (program === null) {
-    return;
-  }
-
-  gl.useProgram(program);
-
-  gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
-  gl.enableVertexAttribArray(aPositionLocation);
-  gl.vertexAttribPointer(aPositionLocation, 2, gl.FLOAT, false, 0, 0);
-  gl.vertexAttribDivisor(aPositionLocation, 0);
-
-  gl.bindBuffer(gl.ARRAY_BUFFER, offsetBuffer);
-  gl.enableVertexAttribArray(aOffsetLocation);
-  gl.vertexAttribPointer(aOffsetLocation, 2, gl.FLOAT, false, 0, 0);
-  gl.vertexAttribDivisor(aOffsetLocation, 1);
-
-  gl.bindBuffer(gl.ARRAY_BUFFER, colorBuffer);
-  gl.enableVertexAttribArray(aColorLocation);
-  gl.vertexAttribPointer(aColorLocation, 4, gl.FLOAT, false, 0, 0);
-  gl.vertexAttribDivisor(aColorLocation, 1);
-
-  gl.bindBuffer(gl.ARRAY_BUFFER, radiusBuffer);
-  gl.enableVertexAttribArray(aRadiusLocation);
-  gl.vertexAttribPointer(aRadiusLocation, 1, gl.FLOAT, false, 0, 0);
-  gl.vertexAttribDivisor(aRadiusLocation, 1);
-
-  gl.uniformMatrix3fv(uMatrixLocation, false, matrix);
-  gl.uniform1f(uScreenWidthPixelsLocation, gl.canvas.width);
-  gl.uniform1f(uStrokeWidthLocation, strokeWidth.value);
-  gl.uniform1f(uStrokeOpacityLocation, strokeOpacity.value);
-  gl.drawArraysInstanced(gl.TRIANGLE_FAN, 0, positions.length / 2, graph.nodes.length || 0);
-};
-
-const animate = (gl: WebGL2RenderingContext) => {
-  drawScene(gl);
-};
-
-const handleMouseDown = (event: MouseEvent) => {
-  if (!canvas.value) {
-    return;
-  }
-
-  const rect = canvas.value.getBoundingClientRect();
-  const mouseX = event.clientX - rect.left;
-  const mouseY = event.clientY - rect.top;
-
-  mouseDown = true;
-  lastMouseX = mouseX;
-  lastMouseY = mouseY;
-};
-
-const handleMouseUp = () => {
-  mouseDown = false;
-};
-
-const handleWheel = (event: WheelEvent) => {
-  if (!canvas.value || !gl) {
-    return;
-  }
-
-  const delta = Math.sign(event.deltaY) * 0.1;
-  const rect = canvas.value.getBoundingClientRect();
-  const mouseX = event.clientX - rect.left;
-  const mouseY = event.clientY - rect.top;
-
-  const x = (mouseX / gl.canvas.width) * 2 - 1;
-  const y = -(mouseY / gl.canvas.height) * 2 + 1;
-
-  const aspectRatio = gl.canvas.width / gl.canvas.height;
-  const worldX = (x - panX) * aspectRatio / scale;
-  const worldY = (y - panY) / scale;
-
-  scale *= (1 - delta);
-
-  panX = x - worldX * scale / aspectRatio;
-  panY = y - worldY * scale;
-};
-
-const handleResize = () => {
-  if (!gl || !canvas.value) {
-    return;
-  }
-  const rect = canvas.value.getBoundingClientRect();
-  canvas.value.width = rect.width;
-  canvas.value.height = rect.height;
-  gl.viewport(0, 0, rect.width, rect.height);
-};
-
-const checkHover = (mouseX: number, mouseY: number) => {
-  if (!gl) {
-    return -1;
-  }
-  let x = (mouseX / gl.canvas.width) * 2 - 1;
-  let y = -(mouseY / gl.canvas.height) * 2 + 1;
-  const aspectRatio = gl.canvas.width / gl.canvas.height;
-  x = (x - panX) * aspectRatio / scale;
-  y = (y - panY) / scale;
-  const n = graph.nodes.length;
-  for (let i = n - 1; i >= 0; i--) {
-    const cx = offsets[i * 2];
-    const cy = offsets[i * 2 + 1];
-    const dist = (x - cx) ** 2 + (y - cy) ** 2;
-    if (dist <= radii[i] ** 2) {
-      return i;
-    }
-  }
-  return -1;
-};
-
-const highlightHover = (mouseX: number, mouseY: number) => {
-  hoveredIndex.value = checkHover(mouseX, mouseY);
-  addHoverColor();
-};
-
-const handleMouseMove = (event: MouseEvent) => {
-  if (!canvas.value) {
-    return;
-  }
-
-  const rect = canvas.value.getBoundingClientRect();
-  const mouseX = event.clientX - rect.left;
-  const mouseY = event.clientY - rect.top;
-
-  highlightHover(mouseX, mouseY);
-
-  if (!gl || lastMouseX === null || lastMouseY === null) {
-    return;
-  }
-
-  if (!mouseDown) {
-    return;
-  }
-
-  const deltaX = (mouseX - lastMouseX) / gl.canvas.width * 2;
-  const deltaY = -(mouseY - lastMouseY) / gl.canvas.height * 2;
-
-  panX += deltaX;
-  panY += deltaY;
-
-  lastMouseX = mouseX;
-  lastMouseY = mouseY;
-};
 
 onMounted(() => {
   if (!canvas.value) {
     return;
   }
-  gl = canvas.value.getContext('webgl2', { antialias: true });
-  if (!gl) {
-    return;
-  }
-  setupWebGL(gl);
-  program = createProgram(gl, nodeVertexShaderSource, nodeFragmentShaderSource);
-  if (program === null) {
-    return;
-  }
-  gl.useProgram(program);
+  layout = new Layout({
+    canvas: canvas.value,
+    onGraph: () => {
+      if (!layout) {
+        return;
+      }
+      fields.value = [
+        'None',
+        ...Object.keys(layout.graph.nodes[0] || {})
+          .filter((field) => !ignoredKeys.includes(field))
+      ];
+    },
+    onHover: (node) => {
+      hoveredNode.value = node;
+    },
+  });
 
-  uMatrixLocation = gl.getUniformLocation(program, 'uMatrix');
-  uScreenWidthPixelsLocation = gl.getUniformLocation(program, 'uScreenWidthPixels');
-  uStrokeWidthLocation = gl.getUniformLocation(program, 'uStrokeWidth');
-  uStrokeOpacityLocation = gl.getUniformLocation(program, 'uStrokeOpacity');
+  watchEffect(() => layout?.setNodeSize(size.value));
+  watchEffect(() => layout?.setNodeSizeField(sizeField.value));
+  watchEffect(() => layout?.setNodeColorField(colorField.value));
+  watchEffect(() => layout?.setNodeOpacity(nodeOpacity.value));
+  watchEffect(() => layout?.setNodeStrokeWidth(strokeWidth.value));
+  watchEffect(() => layout?.setNodeStrokeOpacity(strokeOpacity.value));
+  watchEffect(() => layout?.setLinkWidth(edgeWidth.value));
+  watchEffect(() => layout?.setLinkOpacity(edgeOpacity.value));
 
-  setupBuffersAndAttributes(gl, program);
-
-  edgeProgram = createProgram(gl, edgeVertexShaderSource, edgeFragmentShaderSource);
-  if (edgeProgram === null) {
-    return;
-  }
-  edgeMatrixLocation = gl.getUniformLocation(edgeProgram, 'uMatrix');
-  edgeWidthLocation = gl.getUniformLocation(edgeProgram, 'uWidth');
-  edgeOpacityLocation = gl.getUniformLocation(edgeProgram, 'uOpacity');
-
-  setupEdgeBuffersAndAttributes(gl, edgeProgram);
-
-  drawScene(gl);
-
-  const keepAnimating = () => {
-    if (gl) {
-      animate(gl);
-    }
-    requestAnimationFrame(keepAnimating);
-  };
-  requestAnimationFrame(keepAnimating);
-  window.addEventListener('resize', handleResize);
-  handleResize();
-
-  const initialGraph: any = {
-    nodes: [],
-    links: [],
-  };
-
-  const n = 10000;
-
-  for (let i = 0; i < n; i++) {
-    initialGraph.nodes.push({id: i});
-  }
-
-  for (let i = 0; i < n; i++) {
-    initialGraph.links.push([i, (i + 1) % n]);
-  }
-
-  const waitForWorkerReady = () => {
-    if (workerReady) {
-      worker.postMessage({ type: 'loadGraph', graph: initialGraph });
-    } else {
-      setTimeout(waitForWorkerReady, 100);
-    }
-  };
-  waitForWorkerReady();
+  watchEffect(() => layout?.setEnergy(energy.value));
+  watchEffect(() => layout?.setCollideStrength(collideForce.value));
+  watchEffect(() => layout?.setChargeStrength(chargeStrength.value));
+  watchEffect(() => layout?.setChargeApproximation(chargeApproximation.value));
+  watchEffect(() => layout?.setLinkStrength(linkForce.value));
+  watchEffect(() => layout?.setGravityStrength(gravity.value));
+  watchEffect(() => layout?.setCenterStrength(centerForce.value ? 1.0 : 0.0));
 });
 
 const fields = ref<string[]>([]);
-const ignoredKeys = ['x', 'y', 'vx', 'vy'];
-
-const epsilon = 1e-4;
-
 const running = ref(false);
 
 const startOrStop = () => {
+  if (!layout) {
+    return;
+  }
   if (running.value) {
-    worker.postMessage({ type: 'stop' });
+    layout.stop();
   } else {
-    worker.postMessage({ type: 'start' });
+    layout.start();
   }
   running.value = !running.value;
 };
@@ -682,14 +74,14 @@ const upload = () => {
     const reader = new FileReader();
     reader.readAsText(file, 'UTF-8');
     reader.onload = function (evt) {
-      if (!evt.target || typeof evt.target.result !== 'string') {
+      if (!layout || !evt.target || typeof evt.target.result !== 'string') {
         return;
       }
       const extension = file.name.split('.').slice(-1)[0];
       if (extension === 'json') {
-        worker.postMessage({type: 'loadGraph', graph: JSON.parse(evt.target.result)});
+        layout.loadJSON(evt.target.result);
       } else if (extension === 'csv') {
-        worker.postMessage({type: 'loadCSV', text: evt.target.result});
+        layout.loadCSV(evt.target.result);
       } else {
         console.log(`Error: Cannot handle files with extension ${extension}.`);
       }
@@ -699,6 +91,25 @@ const upload = () => {
     }
   }
 };
+
+const hoveredNode = ref<Node | null>(null);
+
+const size = ref(0.5);
+const sizeField = ref('degree');
+const colorField = ref('None');
+const nodeOpacity = ref(0.5);
+const strokeWidth = ref(1.0);
+const strokeOpacity = ref(0.5);
+const edgeWidth = ref(5.0);
+const edgeOpacity = ref(0.5);
+
+const energy = ref(1);
+const chargeStrength = ref(30);
+const chargeApproximation = ref(1.5);
+const collideForce = ref(1.0);
+const linkForce = ref(1.0);
+const centerForce = ref(true);
+const gravity = ref(0);
 
 const showHelp = ref(false);
 
@@ -720,12 +131,21 @@ const exampleJSON = `{
   ]
 }`;
 
+const formatNumberWithCommas = (num: number): string => {
+  return num.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+};
+
+const epsilon = 1e-4;
+
+const showLayoutControls = ref(true);
+
 const downloadAnchor = ref<HTMLAnchorElement | null>(null);
 
 const download = () => {
-  if (!downloadAnchor.value) {
+  if (!downloadAnchor.value || !layout) {
     return;
   }
+  const { graph, offsets } = layout;
   const nodesWithPositions = graph.nodes.map(({vx, vy, index, degree, ...n}, i) => ({
     ...n,
     x: offsets[2*i],
@@ -735,7 +155,7 @@ const download = () => {
     nodes: nodesWithPositions,
     links: graph.links.map(({source, target, weight}) => [source, target, weight]),
   }
-  var blob = new Blob([JSON.stringify(saveGraph, null, 2)], {
+  const blob = new Blob([JSON.stringify(saveGraph, null, 2)], {
     type : 'data:text/json;charset=utf-8;',
   });
   downloadAnchor.value.setAttribute('href', URL.createObjectURL(blob));
@@ -743,11 +163,7 @@ const download = () => {
   downloadAnchor.value.click();
 };
 
-const formatNumberWithCommas = (num: number): string => {
-  return num.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
-};
-
-const showLayoutControls = ref(true);
+const ignoredKeys = ['x', 'y', 'vx', 'vy'];
 
 </script>
 
@@ -776,7 +192,7 @@ const showLayoutControls = ref(true);
         After upload, start the layout and adjust the layout parameters.
       </p>
     </div>
-    <button class="mt-4 w-full bg-gray-700 text-white border border-gray-600 rounded py-1 hover:bg-gray-600" @click="$refs.fileElement.click()">
+    <button class="mt-4 w-full bg-gray-700 text-white border border-gray-600 rounded py-1 hover:bg-gray-600" @click="() => fileElement && fileElement.click()">
       Upload
     </button>
     <input ref="fileElement" type="file" class="hidden" @change="upload">
@@ -864,28 +280,21 @@ const showLayoutControls = ref(true);
       <a ref="downloadAnchor" class="hidden"></a>
     </div>
     <div class="mt-2">
-      {{ formatNumberWithCommas(graph.nodes.length) }} nodes <span class="ml-2"></span> {{ formatNumberWithCommas(graph.links.length) }} links
+      {{ formatNumberWithCommas(layout ? layout.graph.nodes.length : 0) }} nodes <span class="ml-2"></span> {{ formatNumberWithCommas(layout ? layout.graph.links.length : 0) }} links
     </div>
-    <div v-if="hoveredIndex !== -1" class="mt-2">
+    <div v-if="hoveredNode !== null" class="mt-2">
       <label class="block text-sm font-medium text-gray-300">Hovered Node</label>
       <div class="text-sm mt-1">
-        <div v-for="key in Object.keys(graph.nodes[hoveredIndex] || {}).filter((key) => !ignoredKeys.includes(key))" :key="key">
-          {{ key }}: {{ graph.nodes[hoveredIndex][key] }}
+        <div v-for="key in Object.keys(hoveredNode).filter((key) => !ignoredKeys.includes(key))" :key="key">
+          {{ key }}: {{ hoveredNode[key] }}
         </div>
       </div>
     </div>
-
   </aside>
   <main class="flex-1 bg-gray-100" @wheel.prevent>
     <canvas
       ref="canvas"
       class="w-full h-full"
-      @mousedown="handleMouseDown"
-      @mouseup="handleMouseUp"
-      @mousemove="handleMouseMove"
-      @wheel="handleWheel"
-      @mousedown.prevent
-      @mousemove.prevent
     ></canvas>
   </main>
 </div>

@@ -1,7 +1,7 @@
 import * as d3 from 'd3';
 import { Link, Node, SerializedGraph, SerializedLink, SimLink, SimNode } from './types';
 
-postMessage({type: 'ready'});
+postMessage({ type: 'ready' });
 
 let size = 1;
 let linkStrength = 1;
@@ -11,7 +11,7 @@ let linkStrengthFunctions = {
   inverseSumDegree: (link: SimLink, _index: number, _links: SimLink[]) => linkStrength / ((link.source as Node).degree + (link.target as Node).degree),
   inverseSumSqrtDegree: (link: SimLink, _index: number, _links: SimLink[]) => linkStrength / (Math.sqrt((link.source as Node).degree) + Math.sqrt((link.target as Node).degree)),
   constant: (_link: SimLink, _index: number, _links: SimLink[]) => linkStrength,
-  radius: (link: SimLink, _index: number, _links: SimLink[]) => linkStrength*linkStrength / Math.min(collide.radius()(link.source as SimNode, 0, []), collide.radius()(link.target as SimNode, 0, [])),
+  radius: (link: SimLink, _index: number, _links: SimLink[]) => linkStrength * linkStrength / Math.min(collide.radius()(link.source as SimNode, 0, []), collide.radius()(link.target as SimNode, 0, [])),
 };
 
 let linkDistanceFunctions = {
@@ -33,7 +33,7 @@ let simulation = d3.forceSimulation()
 
 const loadGraph = (graph: SerializedGraph) => {
   function tick() {
-    postMessage({type: 'positions', positions: graph.nodes!.map(n => ({x: n.x, y: n.y}))});
+    postMessage({ type: 'positions', positions: graph.nodes!.map(n => ({ x: n.x, y: n.y })) });
   }
 
   // Normalize links
@@ -60,7 +60,7 @@ const loadGraph = (graph: SerializedGraph) => {
       index: i,
     }));
   }
-  const nodeMap: {[key: number | string]: Node} = {};
+  const nodeMap: { [key: number | string]: Node } = {};
   graph.nodes.forEach((d, i) => {
     d.degree = 0;
     d.id = '' + d.id;
@@ -77,24 +77,32 @@ const loadGraph = (graph: SerializedGraph) => {
   graph.nodes.sort((a, b) => d3.ascending(a.degree, b.degree));
   simulation
     .nodes(graph.nodes as SimNode[])
+    .alpha(1)
     .on('tick', tick);
 
-  postMessage({type: 'graph', graph});
-  postMessage({type: 'positions', positions: graph.nodes.map(n => ({x: n.x, y: n.y}))});
+  postMessage({ type: 'graph', graph });
+  postMessage({ type: 'positions', positions: graph.nodes.map(n => ({ x: n.x, y: n.y })) });
 
-  let oldLink = simulation.force('link') || null;
-  simulation.force('link', link);
+  // let oldLink = simulation.force('link') || null;
+  // simulation.force('link', link);
+  // link.links(graph.links);
+  // simulation.force('link', oldLink);
+
   link.links(graph.links);
-  simulation.force('link', oldLink);
+  simulation.force('link', link);
+  simulation.force('charge', charge);
+  simulation.force('collide', collide);
+  simulation.force('center', center);
+  simulation.force('gravity', gravity);
 }
 
-onmessage = function(e) {
+onmessage = function (e) {
   if (e.data.type === 'start') {
     simulation.restart();
   } else if (e.data.type === 'stop') {
     simulation.stop();
   } else if (e.data.type === 'loadCSV') {
-    loadGraph({links: d3.csvParse(e.data.text) as unknown as SerializedLink[]} as SerializedGraph);
+    loadGraph({ links: d3.csvParse(e.data.text) as unknown as SerializedLink[] } as SerializedGraph);
   } else if (e.data.type === 'loadGraph') {
     loadGraph(e.data.graph);
   } else if (e.data.type === 'chargeApproximation') {
@@ -116,6 +124,7 @@ onmessage = function(e) {
     collide.strength(e.data.value);
   } else if (e.data.type === 'centerForce') {
     simulation.force('center', e.data.value ? center : null);
+    center.strength(e.data.value);
   } else if (e.data.type === 'gravity') {
     simulation.force('gravity', e.data.value ? gravity : null);
     gravity.strength(e.data.value);
