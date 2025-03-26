@@ -58,6 +58,7 @@ export class Layout {
   nodeSizeField: string | null = null;
   nodeSize = 1;
   nodeColorField: string | null = null;
+  nodeColorMode = 'auto';
   nodeOpacity = 0.5;
   linkWidth = 0.01;
   linkOpacity = 0.5;
@@ -497,36 +498,11 @@ export class Layout {
     window.addEventListener('resize', handleResize);
     handleResize();
 
-    // const initialGraph: any = {
-    //   nodes: [],
-    //   links: [],
-    // };
-
-    // const n = 10000;
-
-    // for (let i = 0; i < n; i++) {
-    //   initialGraph.nodes.push({ id: i });
-    // }
-
-    // for (let i = 0; i < n; i++) {
-    //   initialGraph.links.push([i, (i + 1) % n]);
-    // }
-
     canvas.addEventListener('mousedown', handleMouseDown);
     canvas.addEventListener('mouseup', handleMouseUp);
     canvas.addEventListener('mousemove', handleMouseMove);
     canvas.addEventListener('click', handleClick);
     canvas.addEventListener('wheel', handleWheel);
-
-    // let workerReady = false;
-    // const waitForWorkerReady = () => {
-    //   if (workerReady) {
-    //     this.worker.postMessage({ type: 'loadGraph', graph: initialGraph });
-    //   } else {
-    //     setTimeout(waitForWorkerReady, 100);
-    //   }
-    // };
-    // waitForWorkerReady();
   }
 
   loadJSON(data: string) {
@@ -562,6 +538,11 @@ export class Layout {
 
   setNodeColorField(field: string | null) {
     this.nodeColorField = field;
+    this.updateColors();
+  }
+
+  setNodeColorMode(mode: string) {
+    this.nodeColorMode = mode;
     this.updateColors();
   }
 
@@ -634,7 +615,9 @@ export class Layout {
 
   updateColors() {
     let colorScale: (value?: number | string) => string;
-    if (this.nodeColorField === null || this.graph.nodes.length === 0) {
+    if (this.nodeColorMode === 'identity') {
+      colorScale = (val) => `${val}`;
+    } else if (this.nodeColorField === null || this.graph.nodes.length === 0) {
       colorScale = () => 'steelblue';
     } else if (typeof this.graph.nodes[0][this.nodeColorField] === 'string') {
       const ordinal = d3.scaleOrdinal(d3.schemeCategory10);

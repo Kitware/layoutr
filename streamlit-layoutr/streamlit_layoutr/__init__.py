@@ -21,6 +21,7 @@ def streamlit_layoutr(
     node_size=1,
     node_size_field=None,
     node_color_field=None,
+    node_color_mode="auto",
     node_opacity=1,
     node_stroke_width=1,
     node_stroke_opacity=1,
@@ -51,11 +52,6 @@ def streamlit_layoutr(
         An optional key that uniquely identifies this component. If this is
         None, and the component's arguments are changed, the component will
         be re-mounted in the Streamlit frontend and lose its current state.
-
-    Returns
-    -------
-    int
-        The number of times the component's "Click Me" button has been clicked.
     """
     component_value = _component_func(
         graph=graph,
@@ -63,6 +59,7 @@ def streamlit_layoutr(
         node_size=node_size,
         node_size_field=node_size_field,
         node_color_field=node_color_field,
+        node_color_mode=node_color_mode,
         node_opacity=node_opacity,
         node_stroke_width=node_stroke_width,
         node_stroke_opacity=node_stroke_opacity,

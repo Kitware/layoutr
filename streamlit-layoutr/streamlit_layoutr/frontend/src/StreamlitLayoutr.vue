@@ -17,6 +17,7 @@ const props = defineProps<{
     node_size: number;
     node_size_field: string | null;
     node_color_field: string | null;
+    node_color_mode: string;
     node_opacity: number;
     node_stroke_width: number;
     node_stroke_opacity: number;
@@ -71,6 +72,7 @@ onMounted(() => {
   watch(() => props.args.node_size, () => layout?.setNodeSize(props.args.node_size), { immediate: true });
   watch(() => props.args.node_size_field, () => layout?.setNodeSizeField(props.args.node_size_field), { immediate: true });
   watch(() => props.args.node_color_field, () => layout?.setNodeColorField(props.args.node_color_field), { immediate: true });
+  watch(() => props.args.node_color_mode, () => layout?.setNodeColorMode(props.args.node_color_mode), { immediate: true });
   watch(() => props.args.node_opacity, () => layout?.setNodeOpacity(props.args.node_opacity), { immediate: true });
   watch(() => props.args.node_stroke_width, () => layout?.setNodeStrokeWidth(props.args.node_stroke_width), { immediate: true });
   watch(() => props.args.node_stroke_opacity, () => layout?.setNodeStrokeOpacity(props.args.node_stroke_opacity), { immediate: true });

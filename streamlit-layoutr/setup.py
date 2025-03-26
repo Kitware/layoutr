@@ -7,9 +7,9 @@ long_description = (this_directory / "README.md").read_text()
 
 setuptools.setup(
     name="streamlit-layoutr",
-    version="0.0.1",
-    author="John Smith",
-    author_email="john@example.com",
+    version="0.0.2",
+    author="Kitware",
+    author_email="kitware@kitware.com",
     description="Streamlit component for graph visualization",
     long_description=long_description,
     long_description_content_type="text/markdown",

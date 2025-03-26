@@ -18,6 +18,7 @@ with st.sidebar:
     node_size = st.slider("Node size", 0.0, 0.5, 0.15, 0.01)
     node_size_field = st.selectbox("Node size field", options=["degree", None])
     node_color_field = st.selectbox("Node color field", options=["type", None])
+    node_color_mode = st.selectbox("Node color mode", options=["auto", "identity"])
     node_opacity = st.slider("Node opacity", 0.0, 1.0, 1.0, 0.01)
     node_stroke_width = st.slider("Node stroke width", 0.0, 10.0, 1.0, 0.01)
     node_stroke_opacity = st.slider("Node stroke opacity", 0.0, 1.0, 1.0, 0.01)
@@ -38,6 +39,7 @@ output = streamlit_layoutr(
     node_size=node_size,
     node_size_field=node_size_field,
     node_color_field=node_color_field,
+    node_color_mode=node_color_mode,
     node_opacity=node_opacity,
     node_stroke_width=node_stroke_width,
     node_stroke_opacity=node_stroke_opacity,
