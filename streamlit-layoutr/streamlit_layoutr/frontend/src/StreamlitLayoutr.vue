@@ -1,5 +1,8 @@
 <template>
-  <canvas ref="canvas" width="100" height="100" :style="{ width: '100%', height: '100%' }"></canvas>
+  <div :style="{ position: 'relative', height: '1000px'}">
+    <canvas ref="canvas" width="100" height="100" :style="{ width: '100%', height: '100%', position: 'absolute', left: 0, top: 0, 'z-index': 0 }"></canvas>
+    <canvas ref="labelCanvas" width="100" height="100" :style="{ width: '100%', height: '100%', position: 'absolute', left: 0, top: 0, 'z-index': 1, 'pointer-events': 'none' }"></canvas>
+  </div>
 </template>
 
 <script setup lang="ts">
@@ -21,6 +24,9 @@ const props = defineProps<{
     node_opacity: number;
     node_stroke_width: number;
     node_stroke_opacity: number;
+    node_label_field: string | null;
+    node_label_font_size: number;
+    node_label_max_count: number;
     link_width: number;
     link_opacity: number;
 
@@ -39,6 +45,7 @@ let graph: SerializedGraph | null = null;
 let hovered: Node | null = null;
 let selected: Node | null = null;
 const canvas = ref<HTMLCanvasElement | null>(null);
+const labelCanvas = ref<HTMLCanvasElement | null>(null);
 
 const loadGraph = () => {
   if (!layout || !props.args.graph) {
@@ -48,11 +55,12 @@ const loadGraph = () => {
 };
 
 onMounted(() => {
-  if (!canvas.value) {
+  if (!canvas.value || !labelCanvas.value) {
     return;
   }
   layout = new Layout({
     canvas: canvas.value,
+    labelCanvas: labelCanvas.value,
     onHover: (hoveredNode) => {
       hovered = hoveredNode;
       Streamlit.setComponentValue({graph, hovered, selected});
@@ -76,6 +84,9 @@ onMounted(() => {
   watch(() => props.args.node_opacity, () => layout?.setNodeOpacity(props.args.node_opacity), { immediate: true });
   watch(() => props.args.node_stroke_width, () => layout?.setNodeStrokeWidth(props.args.node_stroke_width), { immediate: true });
   watch(() => props.args.node_stroke_opacity, () => layout?.setNodeStrokeOpacity(props.args.node_stroke_opacity), { immediate: true });
+  watch(() => props.args.node_label_field, () => layout?.setLabelField(props.args.node_label_field), { immediate: true });
+  watch(() => props.args.node_label_font_size, () => layout?.setLabelFontSize(props.args.node_label_font_size), { immediate: true });
+  watch(() => props.args.node_label_max_count, () => layout?.setLabelMaxCount(props.args.node_label_max_count), { immediate: true });
   watch(() => props.args.link_width, () => layout?.setLinkWidth(props.args.link_width), { immediate: true });
   watch(() => props.args.link_opacity, () => layout?.setLinkOpacity(props.args.link_opacity), { immediate: true });
 

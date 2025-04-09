@@ -14,11 +14,11 @@ out float vAntialiasDistance;
 out float vStrokePosition;
 
 void main() {
-  float fullRadius = aRadius + uStrokeWidth / 2.0;
+  float fullRadius = aRadius + uStrokeWidth / 2.0f;
   vec2 position = aPosition * fullRadius + aOffset;
-  position = (uMatrix * vec3(position, 1.0)).xy;
+  position = (uMatrix * vec3(position, 1.0f)).xy;
   vPosition = aPosition;
-  gl_Position = vec4(position, 0.0, 1.0);
+  gl_Position = vec4(position, 0.0f, 1.0f);
   vColor = aColor;
 
   // 1px is 2.0 / uScreenWidthPixels in GL screen space.
@@ -30,6 +30,6 @@ void main() {
   // position / pixel = (position / screen) * (screen / pixel)
   //                  = (1 / (aRadius * uMatrix[0][0])) * (2 / uScreenWidthPixels)
   //                  = 2 / (aRadius * uMatrix[0][0] * uScreenWidthPixels)
-  vAntialiasDistance = 2.0 / (fullRadius * uMatrix[0][0] * uScreenWidthPixels);
-  vStrokePosition = (aRadius - uStrokeWidth / 2.0) / fullRadius;
+  vAntialiasDistance = 2.0f / (fullRadius * uMatrix[0][0] * uScreenWidthPixels);
+  vStrokePosition = (aRadius - uStrokeWidth / 2.0f) / fullRadius;
 }

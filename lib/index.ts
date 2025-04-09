@@ -49,12 +49,17 @@ const createShader = (gl: WebGL2RenderingContext, type: GLenum, source: string) 
 
 export class Layout {
   canvas: HTMLCanvasElement;
+  labelCanvas: HTMLCanvasElement;
+  labelCtx: CanvasRenderingContext2D;
   gl: WebGL2RenderingContext;
   graph: SerializedGraph = {
     nodes: [],
     links: [],
   };
   worker = new LayoutWorker();
+  labelMaxCount = 100;
+  labelField: string | null = null;
+  labelFontSize = 12;
   nodeSizeField: string | null = null;
   nodeSize = 1;
   nodeColorField: string | null = null;
@@ -71,6 +76,7 @@ export class Layout {
   colors = new Float32Array();
   hoveredIndex = -1;
   selectedIndex = -1;
+  nodeIndicesByRadius: number[] = [];
 
   radiusBuffer: WebGLBuffer | null = null;
   colorBuffer: WebGLBuffer | null = null;
@@ -79,17 +85,21 @@ export class Layout {
 
   constructor({
     canvas,
+    labelCanvas,
     onGraph,
     onHover,
     onSelect,
   }: {
     canvas: HTMLCanvasElement,
+    labelCanvas: HTMLCanvasElement,
     onGraph?: () => void,
     onHover?: (node: Node | null) => void,
     onSelect?: (node: Node | null) => void,
   }) {
     this.canvas = canvas;
     this.gl = this.canvas.getContext('webgl2', { antialias: true })!;
+    this.labelCanvas = labelCanvas;
+    this.labelCtx = this.labelCanvas.getContext('2d')!;
 
     if (!this.gl) {
       throw new Error('Failed to get WebGL2 context');
@@ -295,7 +305,6 @@ export class Layout {
         gl.vertexAttribDivisor(alinkOffsetLocation, 1);
 
         gl.drawArraysInstanced(gl.TRIANGLE_FAN, 0, 4, this.graph.links.length || 0);
-        // gl.drawArraysInstanced(gl.LINES, 0, 4, graph.links.length || 0);
       }
 
       if (program === null) {
@@ -331,15 +340,54 @@ export class Layout {
       gl.drawArraysInstanced(gl.TRIANGLE_FAN, 0, positions.length / 2, this.graph.nodes.length || 0);
     };
 
+    const drawLabels = (ctx: CanvasRenderingContext2D) => {
+      ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+      if (this.labelField === null) {
+        return;
+      }
+      ctx.font = `${this.labelFontSize}px sans-serif`;
+      const n = this.graph.nodes.length;
+      const aspectRatio = ctx.canvas.width / ctx.canvas.height;
+      ctx.fillStyle = 'black';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.shadowBlur = 5;
+      ctx.shadowColor = 'white';
+      const toDraw: { label: string, x: number, y: number }[] = [];
+      for (let ind = 0; ind < n; ind++) {
+        const i = this.nodeIndicesByRadius[ind];
+        const cx = this.offsets[i * 2] * scale / aspectRatio + panX;
+        const cy = this.offsets[i * 2 + 1] * scale + panY;
+        const tx = (0.5 * cx + 0.5) * ctx.canvas.width;
+        const ty = ctx.canvas.height - (0.5 * cy + 0.5) * ctx.canvas.height;
+        if (tx < 0 || tx > ctx.canvas.width || ty < 0 || ty > ctx.canvas.height) {
+          continue;
+        }
+        const name = `${this.graph.nodes[i][this.labelField]}`;
+        toDraw.push({ label: name, x: tx, y: ty });
+        if (this.labelMaxCount !== 0 && toDraw.length >= this.labelMaxCount) {
+          break;
+        }
+      }
+
+      // Reverse to draw the less important labels first
+      toDraw.reverse().forEach(({ label, x, y }) => {
+        // Draw multiple times to increase opacity of shadow
+        ctx.fillText(label, x, y);
+        ctx.fillText(label, x, y);
+        ctx.fillText(label, x, y);
+      });
+
+    };
+
     const animate = (gl: WebGL2RenderingContext) => {
       drawScene(gl);
+      drawLabels(this.labelCtx);
     };
 
     const handleClick = () => {
-      if (this.hoveredIndex === -1) {
-        return;
-      }
       this.selectedIndex = this.hoveredIndex;
+      this.addHoverColor();
       this.addSelectColor();
       onSelect && onSelect(this.graph.nodes[this.hoveredIndex] ?? null);
     }
@@ -389,6 +437,8 @@ export class Layout {
       const rect = canvas.getBoundingClientRect();
       canvas.width = rect.width;
       canvas.height = rect.height;
+      labelCanvas.width = rect.width;
+      labelCanvas.height = rect.height;
       this.gl.viewport(0, 0, rect.width, rect.height);
     };
 
@@ -417,6 +467,7 @@ export class Layout {
         onHover && onHover(this.graph.nodes[this.hoveredIndex] ?? null);
       }
       this.addHoverColor();
+      this.addSelectColor();
     };
 
     const handleMouseMove = (event: MouseEvent) => {
@@ -489,6 +540,7 @@ export class Layout {
     setuplinkBuffersAndAttributes(this.gl, linkProgram);
 
     drawScene(this.gl);
+    drawLabels(this.labelCtx);
 
     const keepAnimating = () => {
       animate(this.gl);
@@ -562,6 +614,18 @@ export class Layout {
     this.linkOpacity = opacity;
   }
 
+  setLabelFontSize(size: number) {
+    this.labelFontSize = size;
+  }
+
+  setLabelMaxCount(max: number) {
+    this.labelMaxCount = max;
+  }
+
+  setLabelField(field: string | null) {
+    this.labelField = field;
+  }
+
   setEnergy(energy: number) {
     this.worker.postMessage({ type: 'energy', value: energy });
   }
@@ -604,9 +668,19 @@ export class Layout {
       this.radii = new Float32Array(n);
     }
     const sizeScale = generateSizeScale(this.graph.nodes, this.nodeSizeField, this.nodeSize);
+    const radiusIndexPairs: { index: number; radius: number }[] = [];
     for (let i = 0; i < n; i++) {
-      this.radii[i] = sizeScale(this.graph.nodes[i] as SimNode, i, this.graph.nodes as SimNode[]);
+      const radius = sizeScale(this.graph.nodes[i] as SimNode, i, this.graph.nodes as SimNode[]);
+      this.radii[i] = radius;
+
+      // Add a small random value to the radius to give a random but stable ordering
+      // to labels to make sure when they are all the same size it's not always
+      // the first labelMaxCount indices that are displayed.
+      radiusIndexPairs.push({ index: i, radius: radius + Math.random() * 10e-8 });
     }
+    this.nodeIndicesByRadius = radiusIndexPairs
+      .sort((a, b) => b.radius - a.radius)
+      .map(pair => pair.index);
     this.worker.postMessage({ type: 'radii', value: this.radii });
     if (this.gl) {
       this.loadRadiusBuffer();
@@ -672,13 +746,6 @@ export class Layout {
         this.colors[adj + 2] = 0;
         this.colors[adj + 3] = 1;
       }
-
-      // Fade all other nodes
-      // const n = graph.value.nodes.length;
-      // const opacity = nodeOpacity.value;
-      // for (let i = 0; i < n; i++) {
-      //   colors[i * 4 + 3] = (i === hovered ? (1 + opacity) / 2 : opacity / 2);
-      // }
     }
     this.loadColorBuffer();
   }
@@ -687,30 +754,13 @@ export class Layout {
     if (this.colors.length !== this.baseColors.length) {
       this.colors = new Float32Array(this.baseColors.length);
     }
-    this.colors.set(this.baseColors);
     const selected = this.selectedIndex;
     if (selected !== -1) {
-      // Make the hovered node and neighbors yellow
+      // Make the selected node red
       this.colors[selected * 4] = 1;
       this.colors[selected * 4 + 1] = 0;
       this.colors[selected * 4 + 2] = 0;
       this.colors[selected * 4 + 3] = 1;
-      // const adjacent = this.neighbors[selected];
-      // const n = adjacent.length;
-      // for (let i = 0; i < n; i++) {
-      //   const adj = adjacent[i] * 4;
-      //   this.colors[adj + 0] = 1;
-      //   this.colors[adj + 1] = 1;
-      //   this.colors[adj + 2] = 0;
-      //   this.colors[adj + 3] = 1;
-      // }
-
-      // Fade all other nodes
-      // const n = graph.value.nodes.length;
-      // const opacity = nodeOpacity.value;
-      // for (let i = 0; i < n; i++) {
-      //   colors[i * 4 + 3] = (i === hovered ? (1 + opacity) / 2 : opacity / 2);
-      // }
     }
     this.loadColorBuffer();
   }

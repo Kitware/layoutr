@@ -22,6 +22,9 @@ with st.sidebar:
     node_opacity = st.slider("Node opacity", 0.0, 1.0, 1.0, 0.01)
     node_stroke_width = st.slider("Node stroke width", 0.0, 10.0, 1.0, 0.01)
     node_stroke_opacity = st.slider("Node stroke opacity", 0.0, 1.0, 1.0, 0.01)
+    node_label_field = st.selectbox("Node label field", options=["id", None])
+    node_label_font_size = st.slider("Node label font size", 0, 100, 12)
+    node_label_max_count = st.slider("Node label max count", 0, 100, 100)
     link_width = st.slider("Link width", 0.0, 10.0, 2.0, 0.01)
     link_opacity = st.slider("Link opacity", 0.0, 1.0, 0.05, 0.01)
 
@@ -43,6 +46,9 @@ output = streamlit_layoutr(
     node_opacity=node_opacity,
     node_stroke_width=node_stroke_width,
     node_stroke_opacity=node_stroke_opacity,
+    node_label_field=node_label_field,
+    node_label_font_size=node_label_font_size,
+    node_label_max_count=node_label_max_count,
     link_width=link_width,
     link_opacity=link_opacity,
     energy=energy,

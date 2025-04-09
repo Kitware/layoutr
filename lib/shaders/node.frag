@@ -14,22 +14,21 @@ out vec4 outColor;
 
 void main() {
   float dist = length(vPosition);
-  if (uStrokeOpacity > 0.0 && uStrokeWidth > 0.0) {
-    float radius = 1.0;
-    if (dist > radius + vAntialiasDistance / 2.0) {
+  if(uStrokeOpacity > 0.0f && uStrokeWidth > 0.0f) {
+    float radius = 1.0f;
+    if(dist > radius + vAntialiasDistance / 2.0f) {
       discard;
     }
-    float alpha = 1.0 - smoothstep(radius - vAntialiasDistance / 2.0, radius + vAntialiasDistance / 2.0, dist);
-    vec3 strokeColor = vec3(0.0, 0.0, 0.0);
-    float colorBlend = smoothstep(vStrokePosition - vAntialiasDistance / 2.0, vStrokePosition + vAntialiasDistance / 2.0, dist);
-    outColor = vec4(mix(vColor.rgb, strokeColor, colorBlend), mix(vColor.a, uStrokeOpacity, colorBlend) * alpha);
+    float alpha = 1.0f - smoothstep(radius - vAntialiasDistance / 2.0f, radius + vAntialiasDistance / 2.0f, dist);
+    float colorBlend = smoothstep(vStrokePosition - vAntialiasDistance / 2.0f, vStrokePosition + vAntialiasDistance / 2.0f, dist);
+    outColor = vec4(mix(vColor.rgb, vec3(0.0f), colorBlend), mix(vColor.a, uStrokeOpacity, colorBlend) * alpha);
   } else {
     // Extend node fill to center of stroke if no stroke
-    float radius = (1.0 + vStrokePosition) / 2.0;
-    if (dist > radius + vAntialiasDistance / 2.0) {
+    float radius = (1.0f + vStrokePosition) / 2.0f;
+    if(dist > radius + vAntialiasDistance / 2.0f) {
       discard;
     }
-    float alpha = 1.0 - smoothstep(radius - vAntialiasDistance / 2.0, radius + vAntialiasDistance / 2.0, dist);
+    float alpha = 1.0f - smoothstep(radius - vAntialiasDistance / 2.0f, radius + vAntialiasDistance / 2.0f, dist);
     outColor = vec4(vColor.rgb, vColor.a * alpha);
   }
 }

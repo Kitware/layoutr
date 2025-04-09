@@ -7,13 +7,15 @@ import 'remixicon/fonts/remixicon.css';
 let layout: Layout | null = null;
 
 const canvas = ref<HTMLCanvasElement | null>(null);
+const labelCanvas = ref<HTMLCanvasElement | null>(null);
 
 onMounted(() => {
-  if (!canvas.value) {
+  if (!canvas.value || !labelCanvas.value) {
     return;
   }
   layout = new Layout({
     canvas: canvas.value,
+    labelCanvas: labelCanvas.value,
     onGraph: () => {
       if (!layout) {
         return;
@@ -29,9 +31,12 @@ onMounted(() => {
     },
   });
 
+  watchEffect(() => layout?.setLabelField(labelField.value === 'None' ? null : labelField.value));
+  watchEffect(() => layout?.setLabelFontSize(labelFontSize.value));
+  watchEffect(() => layout?.setLabelMaxCount(labelMaxCount.value));
   watchEffect(() => layout?.setNodeSize(size.value));
-  watchEffect(() => layout?.setNodeSizeField(sizeField.value));
-  watchEffect(() => layout?.setNodeColorField(colorField.value));
+  watchEffect(() => layout?.setNodeSizeField(sizeField.value === 'None' ? null : sizeField.value));
+  watchEffect(() => layout?.setNodeColorField(colorField.value === 'None' ? null : colorField.value));
   watchEffect(() => layout?.setNodeOpacity(nodeOpacity.value));
   watchEffect(() => layout?.setNodeStrokeWidth(strokeWidth.value));
   watchEffect(() => layout?.setNodeStrokeOpacity(strokeOpacity.value));
@@ -94,8 +99,11 @@ const upload = () => {
 
 const hoveredNode = ref<Node | null>(null);
 
+const labelFontSize = ref(12);
+const labelMaxCount = ref(100);
 const size = ref(0.5);
 const sizeField = ref('degree');
+const labelField = ref('None');
 const colorField = ref('None');
 const nodeOpacity = ref(0.5);
 const strokeWidth = ref(1.0);
@@ -197,6 +205,20 @@ const ignoredKeys = ['x', 'y', 'vx', 'vy'];
     </button>
     <input ref="fileElement" type="file" class="hidden" @change="upload">
     <div class="mt-2">
+      <label class="block text-sm font-medium text-gray-300">Label Field</label>
+      <select v-model="labelField" class="text-sm w-full mt-1 mb-1 bg-gray-700 text-white border border-gray-600 rounded">
+        <option v-for="field in fields" :key="field" :value="field">{{ field }}</option>
+      </select>
+    </div>
+    <div class="mt-2">
+      <label class="block text-sm font-medium text-gray-300">Label Font Size</label>
+      <input type="range" v-model.number="labelFontSize" :min="2" :max="24" :step="epsilon" class="w-full mt-1">
+    </div>
+    <div class="mt-2">
+      <label class="block text-sm font-medium text-gray-300">Max Labels</label>
+      <input type="range" v-model.number="labelMaxCount" :min="0" :max="1000" :step="1" class="w-full mt-1">
+    </div>
+    <div class="mt-2">
       <label class="block text-sm font-medium text-gray-300">Edge Width</label>
       <input type="range" v-model.number="edgeWidth" :min="0" :max="50" :step="epsilon" class="w-full mt-1">
     </div>
@@ -292,10 +314,10 @@ const ignoredKeys = ['x', 'y', 'vx', 'vy'];
     </div>
   </aside>
   <main class="flex-1 bg-gray-100" @wheel.prevent>
-    <canvas
-      ref="canvas"
-      class="w-full h-full"
-    ></canvas>
+    <div class="w-full h-full" :style="{ position: 'relative'}">
+      <canvas ref="canvas" class="w-full h-full" :style="{ position: 'absolute', left: 0, top: 0, 'z-index': 0 }"></canvas>
+      <canvas ref="labelCanvas" class="w-full h-full" :style="{ position: 'absolute', left: 0, top: 0, 'z-index': 1, 'pointer-events': 'none' }"></canvas>
+    </div>
   </main>
 </div>
 </template>
